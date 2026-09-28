@@ -1,0 +1,83 @@
+[project]
+name = "appraiser-backend"
+version = "0.1.0"
+description = "Appraiser backend (Django + DRF + Channels)."
+requires-python = ">=3.13"
+dependencies = [
+    # Core
+    "Django>=5.1,<5.2",
+    "djangorestframework>=3.15,<4.0",
+    "django-cors-headers>=4.6,<5.0",
+    "django-environ>=0.12,<1.0",
+    "django-filter>=24.3,<25.0",
+    "django-unfold>=0.43,<1.0",
+    # Authentication
+    "djangorestframework-simplejwt>=5.3,<6.0",
+    # Database
+    "psycopg[binary]>=3.2,<4.0",
+    # Cache & queue
+    "redis>=5.2,<6.0",
+    "django-redis>=5.4,<6.0",
+    "celery>=5.4,<6.0",
+    # WebSockets
+    "channels>=4.0,<5.0",
+    "channels-redis>=4.2,<5.0",
+    "daphne>=4.1,<5.0",
+    # AI / cloud
+    "requests>=2.32,<3.0",
+    "boto3>=1.35,<2.0",
+    "pypdf>=5.0,<6.0",
+    "python-docx>=1.1,<2.0",
+    # Media
+    "Pillow>=11.0,<12.0",
+    # Production server
+    "gunicorn>=23.0,<24.0",
+    "whitenoise>=6.8,<7.0",
+    # Monitoring
+    "sentry-sdk[django]>=2.19,<3.0",
+    # Storage
+    "django-storages[s3]>=1.14,<2.0",
+    "django-debug-toolbar>=5.2.0",
+    "django-extensions>=3.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Development & debugging
+    "django-debug-toolbar>=5.0,<6.0",
+    "django-extensions>=3.2,<4.0",
+    "ipython>=8.30,<9.0",
+
+    # Testing
+    "pytest>=8.3,<9.0",
+    "pytest-django>=4.9,<5.0",
+    "pytest-cov>=6.0,<7.0",
+    "factory-boy>=3.3,<4.0",
+
+    # Linting & formatting
+    "ruff>=0.8,<1.0",
+    "mypy>=1.13,<2.0",
+    "django-stubs>=5.1,<6.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.development"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.development"

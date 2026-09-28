@@ -1,0 +1,445 @@
+{% extends 'admin/base.html' %}
+{% load i18n humanize %}
+
+{% block title %}Dashboard | {{ site_title }}{% endblock %}
+
+{% block branding %}
+    {% include "unfold/helpers/site_branding.html" %}
+{% endblock %}
+
+{% block content %}
+<style>
+    .ds-card{background:#1e2530;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:28px}
+    .ds-card-sm{background:#1e2530;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:24px}
+    .ds-kpi{border-radius:16px;padding:24px;border:1px solid rgba(255,255,255,0.06);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;display:block;text-decoration:none}
+    .ds-kpi:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,0.3)}
+    .ds-kpi-green{background:linear-gradient(135deg,#166534,#15803d,#16a34a);border-color:rgba(34,197,94,0.3)}
+    .ds-kpi-blue{background:linear-gradient(135deg,#1e3a5f,#1e40af,#2563eb);border-color:rgba(59,130,246,0.3)}
+    .ds-kpi-amber{background:linear-gradient(135deg,#78350f,#92400e,#b45309);border-color:rgba(245,158,11,0.3)}
+    .ds-kpi-emerald{background:linear-gradient(135deg,#064e3b,#065f46,#047857);border-color:rgba(16,185,129,0.3)}
+    .ds-arrow{position:absolute;top:16px;right:16px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);font-size:18px}
+    .ds-kpi-label{font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);margin-bottom:12px}
+    .ds-kpi-value{font-size:40px;font-weight:800;color:#fff;letter-spacing:-1px;line-height:1;margin-bottom:12px}
+    .ds-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:700}
+    .ds-title{font-size:16px;font-weight:700;color:#fff}
+    .ds-subtitle{font-size:12px;color:rgba(255,255,255,0.35);margin-top:2px}
+    .ds-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#4ade80;padding:6px 14px;border-radius:10px;background:rgba(34,197,94,0.1);transition:background .15s;text-decoration:none}
+    .ds-link:hover{background:rgba(34,197,94,0.2);color:#4ade80}
+    .ds-section-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .ds-stat-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04)}
+    .ds-stat-label{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:500;color:rgba(255,255,255,0.6)}
+    .ds-stat-dot{width:8px;height:8px;border-radius:50%}
+    .ds-stat-value{font-size:14px;font-weight:800;color:#fff}
+    .ds-inner{background:#161b22;border:1px solid rgba(255,255,255,0.04);border-radius:12px}
+    .ds-list-item{display:flex;align-items:center;gap:14px;padding:14px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04);transition:background .15s;text-decoration:none}
+    .ds-list-item:hover{background:#1a2029}
+    .ds-progress-track{width:100%;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden}
+    .ds-progress-fill{height:100%;border-radius:5px}
+    .ds-audit-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1e2530;border:1px solid rgba(255,255,255,0.06)}
+    .ds-time-badge{font-size:10px;color:rgba(255,255,255,0.35);white-space:nowrap;padding:4px 10px;border-radius:8px;background:#1e2530;border:1px solid rgba(255,255,255,0.06);font-weight:500;flex-shrink:0}
+    .ds-mini-card{border-radius:12px;padding:16px;text-align:center;background:#161b22;border:1px solid rgba(255,255,255,0.04)}
+    .ds-mini-val{font-size:24px;font-weight:800;color:#fff}
+    .ds-mini-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:4px;color:rgba(255,255,255,0.35)}
+    .ds-status-card{border-radius:12px;padding:20px;text-align:center}
+    .ds-status-value{font-size:28px;font-weight:800}
+    .ds-status-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}
+</style>
+
+<div style="display:flex;flex-direction:column;gap:32px;">
+
+    {# ── Page Header ── #}
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:800;color:#fff;margin:0;">Platform Overview</h1>
+            <p style="font-size:13px;color:rgba(255,255,255,0.35);margin-top:4px;">Comprehensive view across all modules</p>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:#1e2530;border:1px solid rgba(255,255,255,0.06);font-size:12px;color:rgba(255,255,255,0.5);">
+            <span class="material-symbols-outlined" style="font-size:16px;color:#4ade80;">calendar_today</span>
+            {{ "now"|date:"l, F j, Y" }}
+        </div>
+    </div>
+
+    {# ── KPI Cards ── #}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;">
+        <a href="/admin/accounts/user/" class="ds-kpi ds-kpi-green">
+            <div class="ds-arrow"><span class="material-symbols-outlined">north_east</span></div>
+            <div class="ds-kpi-label">Active Users</div>
+            <div class="ds-kpi-value">{{ total_users|intcomma }}</div>
+            {% if new_users_week > 0 %}
+            <div class="ds-badge" style="background:rgba(34,197,94,0.15);color:#4ade80;">
+                <span class="material-symbols-outlined" style="font-size:14px;">trending_up</span>
+                +{{ new_users_week }} this week
+            </div>
+            {% endif %}
+        </a>
+        <a href="/admin/organisations/organisation/" class="ds-kpi ds-kpi-blue">
+            <div class="ds-arrow"><span class="material-symbols-outlined">north_east</span></div>
+            <div class="ds-kpi-label">Organisations</div>
+            <div class="ds-kpi-value">{{ total_orgs|intcomma }}</div>
+            <div class="ds-badge" style="background:rgba(96,165,250,0.15);color:#93bbfd;">
+                <span class="material-symbols-outlined" style="font-size:14px;">apartment</span>
+                {{ total_departments }} departments
+            </div>
+        </a>
+        <a href="/admin/projects/project/" class="ds-kpi ds-kpi-amber">
+            <div class="ds-arrow"><span class="material-symbols-outlined">north_east</span></div>
+            <div class="ds-kpi-label">Active Projects</div>
+            <div class="ds-kpi-value">{{ active_projects|intcomma }}</div>
+            <div class="ds-badge" style="background:rgba(251,191,36,0.15);color:#fcd34d;">
+                <span class="material-symbols-outlined" style="font-size:14px;">flag</span>
+                {{ completed_milestones }}/{{ total_milestones }} milestones
+            </div>
+        </a>
+        <a href="/admin/policies/policy/" class="ds-kpi ds-kpi-emerald">
+            <div class="ds-arrow"><span class="material-symbols-outlined">north_east</span></div>
+            <div class="ds-kpi-label">Policies</div>
+            <div class="ds-kpi-value">{{ total_policies|intcomma }}</div>
+            <div class="ds-badge" style="background:rgba(167,243,208,0.15);color:#6ee7b7;">
+                <span class="material-symbols-outlined" style="font-size:14px;">verified</span>
+                {{ total_acknowledgments }} acknowledged
+            </div>
+        </a>
+    </div>
+
+    {# ── Module Stats Grid (6 mini cards) ── #}
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px;">
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#f87171;">{{ overdue_tasks }}</div>
+            <div class="ds-mini-label">Overdue Tasks</div>
+        </div>
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#60a5fa;">{{ total_messages|intcomma }}</div>
+            <div class="ds-mini-label">Messages</div>
+        </div>
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#a78bfa;">{{ total_jds }}</div>
+            <div class="ds-mini-label">Job Descriptions</div>
+        </div>
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#fbbf24;">{{ total_documents }}</div>
+            <div class="ds-mini-label">Documents</div>
+        </div>
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#4ade80;">{{ total_ai_outputs }}</div>
+            <div class="ds-mini-label">AI Outputs</div>
+        </div>
+        <div class="ds-mini-card">
+            <div class="ds-mini-val" style="color:#22d3ee;">{{ total_time_logs }}</div>
+            <div class="ds-mini-label">Time Logs</div>
+        </div>
+    </div>
+
+    {# ── Two Column Layout ── #}
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+
+        {# ── LEFT COLUMN ── #}
+        <div style="display:flex;flex-direction:column;gap:24px;">
+
+            {# Project Overview #}
+            <div class="ds-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+                    <div>
+                        <div class="ds-title">Project Overview</div>
+                        <div class="ds-subtitle">Status breakdown & milestones</div>
+                    </div>
+                    <a href="/admin/projects/project/" class="ds-link">View all <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span></a>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+                    <div class="ds-status-card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.15);border-radius:12px;">
+                        <div class="ds-status-value" style="color:#4ade80;">{{ proj_active }}</div>
+                        <div class="ds-status-label" style="color:rgba(74,222,128,0.6);">Active</div>
+                    </div>
+                    <div class="ds-status-card" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:12px;">
+                        <div class="ds-status-value" style="color:#fbbf24;">{{ proj_on_hold }}</div>
+                        <div class="ds-status-label" style="color:rgba(251,191,36,0.6);">On Hold</div>
+                    </div>
+                    <div class="ds-status-card" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);border-radius:12px;">
+                        <div class="ds-status-value" style="color:#60a5fa;">{{ proj_completed }}</div>
+                        <div class="ds-status-label" style="color:rgba(96,165,250,0.6);">Completed</div>
+                    </div>
+                    <div class="ds-status-card" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);border-radius:12px;">
+                        <div class="ds-status-value" style="color:#f87171;">{{ proj_cancelled }}</div>
+                        <div class="ds-status-label" style="color:rgba(248,113,113,0.6);">Cancelled</div>
+                    </div>
+                </div>
+                {# Upcoming milestones #}
+                {% if upcoming_milestones %}
+                <div style="border-top:1px solid rgba(255,255,255,0.04);padding-top:16px;">
+                    <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Upcoming Milestones (14 days)</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        {% for ms in upcoming_milestones %}
+                        <div class="ds-list-item" style="padding:10px 14px;">
+                            <span class="material-symbols-outlined" style="font-size:16px;color:#fbbf24;">flag</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:12px;color:#fff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ms.title }}</div>
+                            </div>
+                            <div class="ds-time-badge">{{ ms.deadline|date:"M j" }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            {# Policies & Compliance #}
+            <div class="ds-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <div class="ds-section-icon" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.15);">
+                            <span class="material-symbols-outlined" style="font-size:20px;color:#34d399;">policy</span>
+                        </div>
+                        <div>
+                            <div class="ds-title">Policies & Compliance</div>
+                            <div class="ds-subtitle">Policy management & acknowledgment tracking</div>
+                        </div>
+                    </div>
+                    <a href="/admin/policies/policy/" class="ds-link">View all <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span></a>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                    <div class="ds-mini-card">
+                        <div class="ds-mini-val" style="color:#34d399;">{{ total_policies }}</div>
+                        <div class="ds-mini-label">Policies</div>
+                    </div>
+                    <div class="ds-mini-card">
+                        <div class="ds-mini-val" style="color:#60a5fa;">{{ total_policy_versions }}</div>
+                        <div class="ds-mini-label">Versions</div>
+                    </div>
+                    <div class="ds-mini-card">
+                        <div class="ds-mini-val" style="color:#4ade80;">{{ total_acknowledgments }}</div>
+                        <div class="ds-mini-label">Acknowledged</div>
+                    </div>
+                    <div class="ds-mini-card">
+                        <div class="ds-mini-val" style="color:#fbbf24;">{{ new_policies_month }}</div>
+                        <div class="ds-mini-label">New (30d)</div>
+                    </div>
+                </div>
+            </div>
+
+            {# Communication & AI #}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                {# Messaging #}
+                <div class="ds-card-sm">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                        <div class="ds-section-icon" style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.15);">
+                            <span class="material-symbols-outlined" style="font-size:20px;color:#60a5fa;">forum</span>
+                        </div>
+                        <div class="ds-title">Messaging</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#60a5fa;"></span>Conversations</div>
+                            <div class="ds-stat-value">{{ total_conversations }}</div>
+                        </div>
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#a78bfa;"></span>Total messages</div>
+                            <div class="ds-stat-value">{{ total_messages|intcomma }}</div>
+                        </div>
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#4ade80;"></span>This week</div>
+                            <div class="ds-stat-value">{{ messages_this_week }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {# AI Tools #}
+                <div class="ds-card-sm">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                        <div class="ds-section-icon" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);">
+                            <span class="material-symbols-outlined" style="font-size:20px;color:#a78bfa;">smart_toy</span>
+                        </div>
+                        <div class="ds-title">AI Tools</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#a78bfa;"></span>Total outputs</div>
+                            <div class="ds-stat-value">{{ total_ai_outputs }}</div>
+                        </div>
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#4ade80;"></span>This month</div>
+                            <div class="ds-stat-value">{{ ai_this_month }}</div>
+                        </div>
+                        <div class="ds-stat-row">
+                            <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#fbbf24;"></span>AI-gen JDs</div>
+                            <div class="ds-stat-value">{{ ai_generated_jds }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Recent Audit Activity #}
+            <div class="ds-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <div class="ds-section-icon" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);">
+                            <span class="material-symbols-outlined" style="font-size:20px;color:#a78bfa;">shield</span>
+                        </div>
+                        <div>
+                            <div class="ds-title">Recent Activity</div>
+                            <div class="ds-subtitle">Latest audit trail entries</div>
+                        </div>
+                    </div>
+                    <a href="/admin/audit/auditlog/" class="ds-link">View all <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span></a>
+                </div>
+                {% if recent_audit %}
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    {% for log in recent_audit %}
+                    <div class="ds-list-item">
+                        <div class="ds-audit-icon">
+                            <span class="material-symbols-outlined" style="font-size:16px;color:{% if log.event_category == 'TASK' %}#4ade80{% elif log.event_category == 'PROJECT' %}#fbbf24{% elif log.event_category == 'AUTHENTICATION' %}#60a5fa{% elif log.event_category == 'USER_MANAGEMENT' %}#a78bfa{% elif log.event_category == 'POLICY' %}#34d399{% else %}rgba(255,255,255,0.3){% endif %};">
+                                {% if log.event_category == 'TASK' %}task_alt{% elif log.event_category == 'PROJECT' %}folder_open{% elif log.event_category == 'AUTHENTICATION' %}lock{% elif log.event_category == 'USER_MANAGEMENT' %}person{% elif log.event_category == 'DOCUMENT' %}description{% elif log.event_category == 'POLICY' %}policy{% else %}info{% endif %}
+                            </span>
+                        </div>
+                        <div style="min-width:0;flex:1;">
+                            <div style="font-size:12px;color:#fff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ log.event_type }}</div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ log.description|default:"—"|truncatechars:60 }}</div>
+                        </div>
+                        <div class="ds-time-badge">{{ log.timestamp|timesince }} ago</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="text-align:center;padding:48px 0;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+                    <span class="material-symbols-outlined" style="font-size:48px;color:rgba(255,255,255,0.1);">history</span>
+                    <p style="font-size:13px;color:rgba(255,255,255,0.3);margin-top:8px;">No audit activity recorded yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# ── RIGHT COLUMN ── #}
+        <div style="display:flex;flex-direction:column;gap:24px;">
+
+            {# Platform Health #}
+            <div class="ds-card-sm">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                    <div class="ds-section-icon" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.15);">
+                        <span class="material-symbols-outlined" style="font-size:20px;color:#4ade80;">monitor_heart</span>
+                    </div>
+                    <div class="ds-title">Platform Health</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#f87171;"></span>Overdue tasks</div>
+                        <div class="ds-stat-value" style="color:{% if overdue_tasks > 0 %}#f87171{% else %}#4ade80{% endif %};">{{ overdue_tasks }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#fbbf24;"></span>Open tasks</div>
+                        <div class="ds-stat-value">{{ open_tasks }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#22d3ee;"></span>Active timers</div>
+                        <div class="ds-stat-value">{{ active_timers }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#a78bfa;"></span>Unread notifications</div>
+                        <div class="ds-stat-value">{{ unread_notifications }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#4ade80;"></span>Pending milestones</div>
+                        <div class="ds-stat-value">{{ pending_milestones }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {# Users by Role #}
+            <div class="ds-card-sm">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                    <div class="ds-section-icon" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);">
+                        <span class="material-symbols-outlined" style="font-size:20px;color:#a78bfa;">group</span>
+                    </div>
+                    <div class="ds-title">Users by Role</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:14px;">
+                    {% for role_name, count in role_counts.items %}
+                    <div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-size:12px;color:rgba(255,255,255,0.6);font-weight:500;text-transform:capitalize;">{{ role_name|lower }}</span>
+                            <span style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">{{ count }}</span>
+                        </div>
+                        <div class="ds-progress-track">
+                            <div class="ds-progress-fill" style="width:{% widthratio count total_users 100 %}%;background:{% if role_name == 'Admin' %}#f87171{% elif role_name == 'Executive' %}#fbbf24{% elif role_name == 'Board Member' %}#a78bfa{% elif role_name == 'Department Head' %}#22d3ee{% elif role_name == 'Manager' %}#60a5fa{% else %}#4ade80{% endif %};"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {# Time & Activity #}
+            <div class="ds-card-sm">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                    <div class="ds-section-icon" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.15);">
+                        <span class="material-symbols-outlined" style="font-size:20px;color:#22d3ee;">schedule</span>
+                    </div>
+                    <div class="ds-title">Time & Activity</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#22d3ee;"></span>Time logs</div>
+                        <div class="ds-stat-value">{{ total_time_logs }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#4ade80;"></span>Activity logs</div>
+                        <div class="ds-stat-value">{{ total_activity_logs }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#fbbf24;"></span>Break logs</div>
+                        <div class="ds-stat-value">{{ total_break_logs }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {# HR & Documents #}
+            <div class="ds-card-sm">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                    <div class="ds-section-icon" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.15);">
+                        <span class="material-symbols-outlined" style="font-size:20px;color:#fbbf24;">work</span>
+                    </div>
+                    <div class="ds-title">HR & Documents</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#fbbf24;"></span>Job descriptions</div>
+                        <div class="ds-stat-value">{{ total_jds }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#a78bfa;"></span>AI-generated JDs</div>
+                        <div class="ds-stat-value">{{ ai_generated_jds }}</div>
+                    </div>
+                    <div class="ds-stat-row">
+                        <div class="ds-stat-label"><span class="ds-stat-dot" style="background:#60a5fa;"></span>Project documents</div>
+                        <div class="ds-stat-value">{{ total_documents }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {# Quick Actions #}
+            <div class="ds-card-sm">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+                    <div class="ds-section-icon" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.15);">
+                        <span class="material-symbols-outlined" style="font-size:20px;color:#fbbf24;">bolt</span>
+                    </div>
+                    <div class="ds-title">Quick Actions</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <a href="/admin/accounts/user/add/" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04);transition:all .15s;text-decoration:none;" onmouseover="this.style.background='rgba(34,197,94,0.08)';this.style.borderColor='rgba(34,197,94,0.2)';" onmouseout="this.style.background='#161b22';this.style.borderColor='rgba(255,255,255,0.04)';">
+                        <span class="material-symbols-outlined" style="font-size:24px;color:#4ade80;">person_add</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;">Add User</span>
+                    </a>
+                    <a href="/admin/projects/project/add/" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04);transition:all .15s;text-decoration:none;" onmouseover="this.style.background='rgba(34,197,94,0.08)';this.style.borderColor='rgba(34,197,94,0.2)';" onmouseout="this.style.background='#161b22';this.style.borderColor='rgba(255,255,255,0.04)';">
+                        <span class="material-symbols-outlined" style="font-size:24px;color:#fbbf24;">create_new_folder</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;">Add Project</span>
+                    </a>
+                    <a href="/admin/policies/policy/add/" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04);transition:all .15s;text-decoration:none;" onmouseover="this.style.background='rgba(34,197,94,0.08)';this.style.borderColor='rgba(34,197,94,0.2)';" onmouseout="this.style.background='#161b22';this.style.borderColor='rgba(255,255,255,0.04)';">
+                        <span class="material-symbols-outlined" style="font-size:24px;color:#34d399;">policy</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;">Add Policy</span>
+                    </a>
+                    <a href="/admin/jd_management/jobdescription/add/" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;border-radius:12px;background:#161b22;border:1px solid rgba(255,255,255,0.04);transition:all .15s;text-decoration:none;" onmouseover="this.style.background='rgba(34,197,94,0.08)';this.style.borderColor='rgba(34,197,94,0.2)';" onmouseout="this.style.background='#161b22';this.style.borderColor='rgba(255,255,255,0.04)';">
+                        <span class="material-symbols-outlined" style="font-size:24px;color:#a78bfa;">work</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;">Add JD</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

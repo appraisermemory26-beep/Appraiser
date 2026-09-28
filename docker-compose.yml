@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: appraiser-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: appraiser
+      POSTGRES_USER: appraiser
+      POSTGRES_PASSWORD: localdevpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - appraiser_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appraiser -d appraiser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: appraiser-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - appraiser_redis_data:/data
+
+volumes:
+  appraiser_postgres_data:
+  appraiser_redis_data:
