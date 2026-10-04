@@ -10,6 +10,7 @@ from .models import AttendanceRecord
 from .serializers import AttendanceRecordSerializer
 
 LATE_CUTOFF_HOUR = 9
+CORRECTION_ALLOWED_ROLES = {"MANAGER", "DEPT_HEAD", "EXECUTIVE", "BOARD_MEMBER", "ADMIN"}
 
 
 class AttendanceRecordViewSet(viewsets.ModelViewSet):
@@ -80,4 +81,31 @@ class AttendanceRecordViewSet(viewsets.ModelViewSet):
         record = AttendanceRecord.objects.filter(organisation=user.organisation, user=user, date=today).first()
         if not record:
             return Response(None)
+        return Response(AttendanceRecordSerializer(record).data)
+
+    @action(detail=True, methods=["post"], url_path="correct")
+    def correct(self, request, pk=None):
+        actor = request.user
+        if actor.role not in CORRECTION_ALLOWED_ROLES:
+            return Response({"error": "Only a Manager, Department Head, Executive, Board Member, or Admin may correct an attendance record."}, status=403)
+
+        record = self.get_object()
+        reason = (request.data.get("note") or "").strip()
+        if not reason:
+            return Response({"error": "A reason is required to correct an attendance record."}, status=400)
+
+        update_fields = {"note": reason, "recorded_by": actor}
+
+        new_clock_out = request.data.get("clock_out")
+        if new_clock_out:
+            update_fields["clock_out"] = new_clock_out
+
+        new_status = request.data.get("status")
+        if new_status:
+            if new_status not in AttendanceRecord.Status.values:
+                return Response({"error": f"Invalid status. Choose one of: {AttendanceRecord.Status.values}"}, status=400)
+            update_fields["status"] = new_status
+
+        AttendanceRecord.objects.filter(pk=record.pk).update(**update_fields)
+        record.refresh_from_db()
         return Response(AttendanceRecordSerializer(record).data)
