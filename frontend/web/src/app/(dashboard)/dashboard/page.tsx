@@ -977,6 +977,100 @@ function AdminDashboard({ stats }: { stats: DashboardStats }) {
 
 // ─── Main Dashboard Page ─────────────────────────────────────────────────────
 
+
+// --- Attendance Clock Panel (all roles) --------------------------------
+
+function AttendanceClockPanel() {
+  const [record, setRecord] = useState<AttendanceRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchToday = useCallback(async () => {
+    try {
+      const data = await api.get<AttendanceRecord | null>("/api/v1/attendance/records/today/");
+      setRecord(data);
+    } catch { /* */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchToday(); }, [fetchToday]);
+
+  const clockIn = async () => {
+    setActionLoading(true);
+    try {
+      await api.post("/api/v1/attendance/records/clock-in/");
+      await fetchToday();
+    } catch { /* */ }
+    setActionLoading(false);
+  };
+
+  const clockOut = async () => {
+    setActionLoading(true);
+    try {
+      await api.post("/api/v1/attendance/records/clock-out/");
+      await fetchToday();
+    } catch { /* */ }
+    setActionLoading(false);
+  };
+
+  const formatClock = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-2xl p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4" style={{ color: "var(--accent)" }} />
+          <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Attendance</h3>
+        </div>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>Working hours: 9:00 AM - 5:00 PM</span>
+      </div>
+
+      {!record && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>You have not clocked in today.</p>
+          <Button variant="primary" size="sm" onClick={clockIn} disabled={actionLoading}>
+            <Play className="h-3 w-3" />
+            Clock In
+          </Button>
+        </div>
+      )}
+
+      {record && !record.clock_out && (
+        <div className="flex items-center justify-between rounded-xl p-4" style={{ backgroundColor: "var(--accent-muted)" }}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: record.status === "LATE" ? "var(--danger)" : "var(--accent)" }}>
+              {record.status === "LATE" ? "Late" : "Present"}
+            </p>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
+              Clocked in at {formatClock(record.clock_in!)}
+            </p>
+          </div>
+          <Button variant="danger" size="sm" onClick={clockOut} disabled={actionLoading}>
+            <Square className="h-3 w-3" />
+            Clock Out
+          </Button>
+        </div>
+      )}
+
+      {record && record.clock_out && (
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              {record.status === "LATE" ? "Late" : "Present"} &middot; Completed
+            </p>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
+              {formatClock(record.clock_in!)} &rarr; {formatClock(record.clock_out)}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -1038,6 +1132,8 @@ export default function DashboardPage() {
           {role.replace("_", " ")}
         </Badge>
       </div>
+
+      <AttendanceClockPanel />
 
       {renderDashboard()}
     </div>

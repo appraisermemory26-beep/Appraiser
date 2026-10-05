@@ -595,3 +595,17 @@ export interface PaginatedResponse<T> {
   previous: string | null;
   results: T[];
 }
+
+export interface AttendanceRecord {
+  id: number;
+  user: number;
+  organisation: number;
+  date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  status: "PRESENT" | "LATE" | "ABSENT" | "ON_LEAVE" | "HOLIDAY";
+  note: string;
+  recorded_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
