@@ -1,4 +1,5 @@
 "use client";
+import type { AttendanceRecord } from "../../../lib/types";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {

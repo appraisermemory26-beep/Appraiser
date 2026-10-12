@@ -13,8 +13,6 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-RUN uv run python manage.py collectstatic --noinput
-
 EXPOSE 8000
 
-CMD ["uv", "run", "daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]
+CMD ["sh", "-c", "uv run python manage.py collectstatic --noinput && uv run python manage.py migrate --noinput && uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
