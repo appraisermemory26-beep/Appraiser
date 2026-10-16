@@ -84,6 +84,7 @@ class BreakLog(TimeStampedModel):
         ANNUAL_LEAVE = "ANNUAL_LEAVE", "Annual Leave"
         SICK_LEAVE = "SICK_LEAVE", "Sick Leave"
         OTHER_LEAVE = "OTHER_LEAVE", "Other Leave"
+        OTHER_LEAVE = "OTHER_LEAVE", "Other Leave"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="break_logs"
