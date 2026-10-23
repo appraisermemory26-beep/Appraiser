@@ -1,4 +1,4 @@
-from django.urls import include, path
+﻿from django.urls import include, path
 
 urlpatterns = [
     path("core/", include("apps.core.urls")),
@@ -7,6 +7,7 @@ urlpatterns = [
     path("tasks/", include("apps.tasks.urls")),
     path("attention/", include("apps.attention.urls")),
     path("attendance/", include("apps.attendance.urls")),
+    path("timesheets/", include("apps.timesheet.urls")),
     path("messaging/", include("apps.messaging.urls")),
     path("policies/", include("apps.policies.urls")),
     path("projects/", include("apps.projects.urls")),
