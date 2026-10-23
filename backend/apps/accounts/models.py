@@ -33,6 +33,10 @@ class User(AbstractUser, TimeStampedModel):
         choices=EmploymentStatus.choices,
         default=EmploymentStatus.ACTIVE,
     )
+    base_salary = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Gross pay for one full pay period, per the organisation's configured pay frequency. Used to generate Payslips.",
+    )
     organisation = models.ForeignKey(
         "organisations.Organisation",
         on_delete=models.CASCADE,

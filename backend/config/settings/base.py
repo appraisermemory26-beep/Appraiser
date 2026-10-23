@@ -47,6 +47,7 @@ LOCAL_APPS = [
     "apps.attendance",
     "apps.timesheet",
     "apps.payroll",
+    "apps.payslip",
     "apps.messaging",
     "apps.policies",
     "apps.projects",
