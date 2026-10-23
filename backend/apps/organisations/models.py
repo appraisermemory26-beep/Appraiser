@@ -21,6 +21,7 @@ class Organisation(TimeStampedModel):
     email = models.EmailField(blank=True)
     website = models.URLField(blank=True)
     is_setup_complete = models.BooleanField(default=False)
+    attendance_enforced = models.BooleanField(default=True, help_text="If off, staff enter Timesheet hours manually instead of clocking in/out.")
     organogram_file = models.URLField(max_length=500, blank=True, help_text="URL to organogram file (Cloudinary or S3)")
     organogram_parse_status = models.CharField(
         max_length=20,
