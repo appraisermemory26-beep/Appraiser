@@ -11,10 +11,10 @@ from apps.accounts.permissions import IsOrganisationMember, IsAdmin, IsManagerOr
 from apps.ai_tools.services import chat_completion
 from apps.audit.models import AuditLog
 
-from .models import Organisation, Department, Unit, Division, ReportingLine
+from .models import Organisation, Department, Unit, Division, ReportingLine, Institution
 from .serializers import (
     OrganisationSerializer, DepartmentSerializer, UnitSerializer,
-    DivisionSerializer, ReportingLineSerializer,
+    DivisionSerializer, ReportingLineSerializer, InstitutionSerializer,
 )
 
 
@@ -289,5 +289,43 @@ class ReportingLineViewSet(viewsets.ModelViewSet):
             organisation=self.request.user.organisation,
             description=f"Reporting line updated: {instance.subordinate} reports to {instance.manager}",
             entity_type="reporting_line",
+            entity_id=instance.id,
+        )
+
+
+class InstitutionViewSet(viewsets.ModelViewSet):
+    serializer_class = InstitutionSerializer
+    permission_classes = [IsAuthenticated, IsOrganisationMember]
+
+    def get_queryset(self):
+        return Institution.objects.filter(organisation=self.request.user.organisation)
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsManagerOrAbove()]
+        return [IsAuthenticated(), IsOrganisationMember()]
+
+    def perform_create(self, serializer):
+        serializer.save(organisation=self.request.user.organisation)
+        instance = serializer.instance
+        AuditLog.objects.create(
+            event_type="institution_created",
+            event_category="ADMINISTRATIVE",
+            user=self.request.user,
+            organisation=self.request.user.organisation,
+            description=f"Institution '{instance.name}' created",
+            entity_type="institution",
+            entity_id=instance.id,
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        AuditLog.objects.create(
+            event_type="institution_updated",
+            event_category="ADMINISTRATIVE",
+            user=self.request.user,
+            organisation=self.request.user.organisation,
+            description=f"Institution '{instance.name}' updated",
+            entity_type="institution",
             entity_id=instance.id,
         )

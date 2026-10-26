@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import Organisation, Department, Unit, Division, ReportingLine
+from .models import Organisation, Department, Unit, Division, ReportingLine, Institution
 
 
 @admin.register(Organisation)
@@ -36,3 +36,10 @@ class DivisionAdmin(ModelAdmin):
 class ReportingLineAdmin(ModelAdmin):
     list_display = ["subordinate", "supervisor", "organisation"]
     list_filter = ["organisation"]
+
+
+@admin.register(Institution)
+class InstitutionAdmin(ModelAdmin):
+    list_display = ["name", "organisation", "country", "default_currency", "is_active"]
+    search_fields = ["name"]
+    list_filter = ["organisation", "default_currency", "is_active"]

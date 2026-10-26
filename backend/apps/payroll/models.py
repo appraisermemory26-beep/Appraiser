@@ -9,25 +9,34 @@ class PayrollConfiguration(TimeStampedModel):
         BIWEEKLY = "BIWEEKLY", "Bi-weekly"
         MONTHLY = "MONTHLY", "Monthly"
 
-    organisation = models.OneToOneField(
-        "organisations.Organisation", on_delete=models.CASCADE, related_name="payroll_configuration"
+    organisation = models.ForeignKey(
+        "organisations.Organisation", on_delete=models.CASCADE, related_name="payroll_configurations"
     )
     currency = models.CharField(max_length=3, help_text="ISO 4217 currency code, e.g. LRD, USD.")
     pay_frequency = models.CharField(
         max_length=20, choices=PayFrequency.choices, default=PayFrequency.MONTHLY
     )
 
+    class Meta:
+        ordering = ["currency"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "currency"], name="one_payroll_config_per_org_per_currency"
+            ),
+        ]
+
     def __str__(self):
-        return f"Payroll config - {self.organisation}"
+        return f"Payroll config - {self.organisation} ({self.currency})"
 
 
 class StatutoryScheme(TimeStampedModel):
-    """A per-institution statutory contribution scheme, e.g. Liberia's
-    NASSCORP at 4% employee / 6% employer. Nothing here is hardcoded to
-    any one country - each organisation defines its own schemes."""
+    """A statutory contribution scheme, scoped to one currency's Payroll
+    Configuration, e.g. Liberia's NASSCORP at 4% employee / 6% employer.
+    Nothing here is hardcoded to any one country - each organisation
+    defines its own schemes, per currency."""
 
-    organisation = models.ForeignKey(
-        "organisations.Organisation", on_delete=models.CASCADE, related_name="statutory_schemes"
+    payroll_configuration = models.ForeignKey(
+        "payroll.PayrollConfiguration", on_delete=models.CASCADE, related_name="statutory_schemes"
     )
     name = models.CharField(max_length=100, help_text="e.g. NASSCORP")
     employee_rate = models.DecimalField(
@@ -43,16 +52,16 @@ class StatutoryScheme(TimeStampedModel):
         ordering = ["-effective_date"]
 
     def __str__(self):
-        return f"{self.name} ({self.organisation})"
+        return f"{self.name} ({self.payroll_configuration})"
 
 
 class TaxBracket(TimeStampedModel):
-    """One row of a per-institution income tax bracket table, with an
-    effective date so historical brackets stay intact once a Payslip
-    has been generated against them."""
+    """One row of an income tax bracket table, scoped to one currency's
+    Payroll Configuration, with an effective date so historical brackets
+    stay intact once a Payslip has been generated against them."""
 
-    organisation = models.ForeignKey(
-        "organisations.Organisation", on_delete=models.CASCADE, related_name="tax_brackets"
+    payroll_configuration = models.ForeignKey(
+        "payroll.PayrollConfiguration", on_delete=models.CASCADE, related_name="tax_brackets"
     )
     lower_bound = models.DecimalField(max_digits=12, decimal_places=2)
     upper_bound = models.DecimalField(
@@ -68,4 +77,4 @@ class TaxBracket(TimeStampedModel):
 
     def __str__(self):
         upper = self.upper_bound if self.upper_bound is not None else "unbounded"
-        return f"{self.lower_bound}-{upper} @ {self.rate}% ({self.organisation})"
+        return f"{self.lower_bound}-{upper} @ {self.rate}% ({self.payroll_configuration})"

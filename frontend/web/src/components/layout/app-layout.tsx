@@ -2,6 +2,7 @@
 
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { HolidayBanner } from "./holiday-banner";
 import { useSidebar } from "@/lib/sidebar-context";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -12,6 +13,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar collapsed={collapsed} onToggle={toggle} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
+        <HolidayBanner />
         <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">{children}</main>
       </div>
     </div>

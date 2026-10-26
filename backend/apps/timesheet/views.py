@@ -1,4 +1,6 @@
-﻿from rest_framework import viewsets, status as http_status
+from datetime import date
+
+from rest_framework import viewsets, status as http_status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -6,12 +8,20 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsOrganisationMember
 
 from .models import Timesheet
-from .serializers import TimesheetSerializer, TimesheetManualEntrySerializer
+from .serializers import (
+    TimesheetSerializer,
+    TimesheetGenerateSerializer,
+    TimesheetDayUpdateSerializer,
+    TimesheetApproveSerializer,
+)
 from .services import (
     TimesheetGenerationError,
     generate_timesheet_from_attendance,
-    submit_manual_timesheet,
+    generate_manual_timesheet,
+    generate_manual_timesheet_ai,
+    update_timesheet_day,
     submit_timesheet,
+    accept_timesheet,
     approve_timesheet,
 )
 
@@ -19,49 +29,51 @@ from .services import (
 class TimesheetViewSet(viewsets.ModelViewSet):
     serializer_class = TimesheetSerializer
     permission_classes = [IsAuthenticated, IsOrganisationMember]
-    http_method_names = ["get", "post", "head", "options"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
         user = self.request.user
         qs = Timesheet.objects.filter(organisation=user.organisation)
+        pending_with_me = qs.filter(current_approver_id=user.id)
         if user.role == "STAFF":
-            return qs.filter(user_id=user.id)
+            return (qs.filter(user_id=user.id) | pending_with_me).distinct()
         if user.role == "MANAGER":
             direct_report_ids = list(user.direct_reports.values_list("id", flat=True))
-            return qs.filter(user_id__in=direct_report_ids + [user.id])
+            return (qs.filter(user_id__in=direct_report_ids + [user.id]) | pending_with_me).distinct()
         if user.role == "DEPT_HEAD" and user.department_id:
             dept_user_ids = list(user.department.members.values_list("id", flat=True))
-            return qs.filter(user_id__in=dept_user_ids + [user.id])
+            return (qs.filter(user_id__in=dept_user_ids + [user.id]) | pending_with_me).distinct()
         return qs
 
     @action(detail=False, methods=["post"], url_path="generate")
     def generate(self, request):
-        """Attendance-enforced path. Body: {"year": 2026, "month": 10}"""
+        """Attendance-enforced path. Body: {"institution": 1, "year": 2026, "month": 10}"""
         user = request.user
         organisation = user.organisation
 
         if not getattr(organisation, "attendance_enforced", True):
             return Response(
-                {"error": "Attendance is disabled for your organisation. Use submit-manual instead."},
+                {"error": "Attendance is disabled for your organisation. Use generate-manual instead."},
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            year = int(request.data["year"])
-            month = int(request.data["month"])
-        except (KeyError, TypeError, ValueError):
-            return Response({"error": "year and month are required integers."}, status=400)
+        serializer = TimesheetGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
         try:
-            timesheet = generate_timesheet_from_attendance(user, organisation, year, month)
+            timesheet = generate_timesheet_from_attendance(
+                user, organisation, data["institution"], data["year"], data["month"]
+            )
         except TimesheetGenerationError as exc:
             return Response({"error": str(exc)}, status=400)
 
         return Response(TimesheetSerializer(timesheet).data)
 
-    @action(detail=False, methods=["post"], url_path="submit-manual")
-    def submit_manual(self, request):
-        """Manual-entry path. Used only when Attendance is disabled."""
+    @action(detail=False, methods=["post"], url_path="generate-manual")
+    def generate_manual(self, request):
+        """Manual-entry path. Used only when Attendance is disabled.
+        Body: {"institution": 1, "year": 2026, "month": 10}"""
         user = request.user
         organisation = user.organisation
 
@@ -71,19 +83,96 @@ class TimesheetViewSet(viewsets.ModelViewSet):
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = TimesheetManualEntrySerializer(data=request.data)
+        serializer = TimesheetGenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
         try:
-            timesheet = submit_manual_timesheet(user, organisation, serializer.validated_data)
+            timesheet = generate_manual_timesheet(
+                user, organisation, data["institution"], data["year"], data["month"]
+            )
         except TimesheetGenerationError as exc:
             return Response({"error": str(exc)}, status=400)
 
         return Response(TimesheetSerializer(timesheet).data)
 
+    @action(detail=False, methods=["post"], url_path="generate-manual-ai")
+    def generate_manual_ai(self, request):
+        """AI chat path (Flexible Mode Method 2). Same as generate-manual, but
+        also accepts the days collected during the chat conversation.
+        Body: {"institution": 1, "year": 2026, "month": 10,
+               "absent_dates": ["2026-11-05"], "holiday_dates": [...], "leave_dates": [...]}
+        Each *_dates entry is a plain "YYYY-MM-DD" string."""
+        user = request.user
+        organisation = user.organisation
+
+        if getattr(organisation, "attendance_enforced", True):
+            return Response(
+                {"error": "Attendance is enabled for your organisation. Use generate instead."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TimesheetGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        def _parse_dates(key):
+            raw = request.data.get(key) or []
+            parsed = set()
+            for s in raw:
+                try:
+                    parsed.add(date.fromisoformat(s))
+                except (ValueError, TypeError):
+                    pass
+            return parsed
+
+        try:
+            timesheet = generate_manual_timesheet_ai(
+                user, organisation, data["institution"], data["year"], data["month"],
+                absent_dates=_parse_dates("absent_dates"),
+                holiday_dates=_parse_dates("holiday_dates"),
+                leave_dates=_parse_dates("leave_dates"),
+            )
+        except TimesheetGenerationError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        return Response(TimesheetSerializer(timesheet).data)
+
+    @action(detail=True, methods=["patch"], url_path=r"days/(?P<day_id>\d+)")
+    def update_day(self, request, pk=None, day_id=None):
+        """Edit one calendar day on this timesheet - change its type
+        (Work/Holiday/Leave.../Absent) and/or its hours."""
+        timesheet = self.get_object()
+        if timesheet.user_id != request.user.id and request.user.role == "STAFF":
+            return Response({"error": "You can only edit your own timesheet."}, status=403)
+
+        serializer = TimesheetDayUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            timesheet = update_timesheet_day(
+                timesheet, day_id, serializer.validated_data["day_type"], serializer.validated_data["hours"]
+            )
+        except TimesheetGenerationError as exc:
+            return Response({"error": str(exc)}, status=400)
+        return Response(TimesheetSerializer(timesheet).data)
+
+    @action(detail=True, methods=["post"], url_path="accept")
+    def accept(self, request, pk=None):
+        """Employee reviews and accepts a manually-entered DRAFT before
+        submitting it (Flexible Mode only)."""
+        timesheet = self.get_object()
+        if timesheet.user_id != request.user.id:
+            return Response({"error": "You can only accept your own timesheet."}, status=403)
+        try:
+            timesheet = accept_timesheet(timesheet, request.user)
+        except TimesheetGenerationError as exc:
+            return Response({"error": str(exc)}, status=400)
+        return Response(TimesheetSerializer(timesheet).data)
+
     @action(detail=True, methods=["post"], url_path="submit")
     def submit(self, request, pk=None):
-        """Submits an attendance-generated DRAFT timesheet for approval."""
+        """Submits a DRAFT timesheet for approval."""
         timesheet = self.get_object()
         if timesheet.user_id != request.user.id:
             return Response({"error": "You can only submit your own timesheet."}, status=403)
@@ -95,19 +184,24 @@ class TimesheetViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
-        """Only Manager/Dept Head/Executive/Admin, and only for someone
-        already inside their own reporting line (get_queryset enforces
-        that), and never your own timesheet."""
+        """Send -> Supervisor -> ... -> HR chain: only the person the
+        timesheet is currently awaiting (timesheet.current_approver), or
+        any Admin acting as HR, may approve - and never your own timesheet."""
         approver = request.user
-        if approver.role == "STAFF":
-            return Response({"error": "Staff cannot approve timesheets."}, status=403)
-
         timesheet = self.get_object()
+
         if timesheet.user_id == approver.id:
             return Response({"error": "You cannot approve your own timesheet."}, status=403)
+        if timesheet.current_approver_id != approver.id and approver.role != "ADMIN":
+            return Response(
+                {"error": "This timesheet is not currently awaiting your approval."}, status=403,
+            )
+
+        serializer = TimesheetApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
         try:
-            timesheet = approve_timesheet(timesheet, approver)
+            timesheet = approve_timesheet(timesheet, approver, serializer.validated_data.get("comment", ""))
         except TimesheetGenerationError as exc:
             return Response({"error": str(exc)}, status=400)
         return Response(TimesheetSerializer(timesheet).data)
@@ -122,4 +216,4 @@ class TimesheetViewSet(viewsets.ModelViewSet):
         return Response({"error": "Timesheets cannot be deleted."}, status=403)
 
     def create(self, request, *args, **kwargs):
-        return Response({"error": "Use /generate or /submit-manual to create a timesheet."}, status=403)
+        return Response({"error": "Use /generate or /generate-manual to create a timesheet."}, status=403)

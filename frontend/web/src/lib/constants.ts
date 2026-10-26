@@ -17,6 +17,10 @@ import {
   Network,
   Trash2,
   BarChart3,
+  Clock,
+  Wallet,
+  Receipt,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +54,15 @@ export const sidebarNavigation: NavGroup[] = [
       { label: "Departments", href: "/departments", icon: Building2, roles: ["ADMIN", "MANAGER", "DEPT_HEAD"] },
       { label: "Job Descriptions", href: "/job-descriptions", icon: FileText, roles: ["ADMIN", "MANAGER", "DEPT_HEAD"] },
       { label: "Organogram", href: "/organogram", icon: Network, roles: ["ADMIN", "DEPT_HEAD", "EXECUTIVE", "BOARD_MEMBER"] },
+    ],
+  },
+  {
+    title: "PAYROLL",
+    items: [
+      { label: "Timesheets", href: "/timesheets", icon: Clock },
+      { label: "Payslips", href: "/payslips", icon: Receipt },
+      { label: "Payroll Configuration", href: "/payroll-configuration", icon: Wallet, roles: ["EXECUTIVE", "BOARD_MEMBER", "ADMIN"] },
+      { label: "Institutions", href: "/institutions", icon: Landmark, roles: ["EXECUTIVE", "BOARD_MEMBER", "ADMIN"] },
     ],
   },
   {

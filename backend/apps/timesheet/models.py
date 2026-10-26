@@ -20,18 +20,52 @@ class Timesheet(TimeStampedModel):
     organisation = models.ForeignKey(
         "organisations.Organisation", on_delete=models.CASCADE, related_name="timesheets"
     )
+    institution = models.ForeignKey(
+        "organisations.Institution", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="timesheets",
+        help_text="Which institution/client this timesheet's hours were worked for.",
+    )
     period_start = models.DateField()
     period_end = models.DateField()
 
     total_days_worked = models.PositiveIntegerField(default=0)
     total_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     annual_leave_days = models.PositiveIntegerField(default=0)
+    upa_leave_days = models.PositiveIntegerField(default=0)
     sick_leave_days = models.PositiveIntegerField(default=0)
     holiday_days = models.PositiveIntegerField(default=0)
     other_leave_days = models.PositiveIntegerField(default=0)
 
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.AUTO)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+
+    current_approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timesheets_pending_my_approval",
+        help_text="Who must act next in the Send -> Supervisor -> ... -> HR approval chain. "
+                  "Set when submitted, advanced one level at a time as each person approves, "
+                  "and cleared once HR (an Admin) gives the final approval.",
+    )
+
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timesheets_accepted",
+        help_text="Employee who reviewed and accepted this manually-entered draft before submitting it.",
+    )
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    requires_acceptance = models.BooleanField(
+        default=False,
+        help_text="True only for a draft generated through the AI chat assistant - it must be "
+                  "explicitly accepted before it can be submitted. A draft filled in directly by "
+                  "typing into the grid does not require this extra step.",
+    )
 
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -41,6 +75,12 @@ class Timesheet(TimeStampedModel):
         related_name="timesheets_approved",
     )
     approved_at = models.DateTimeField(null=True, blank=True)
+    approval_comment = models.TextField(
+        blank=True,
+        default="",
+        help_text="Supervisor's remark when approving this timesheet, e.g. "
+                  "'Regular at work and dedicated' or 'Irregular at work and not focused'.",
+    )
 
     class Meta:
         ordering = ["-period_start"]
@@ -69,3 +109,66 @@ class Timesheet(TimeStampedModel):
         if self.status == Timesheet.Status.APPROVED:
             raise ValueError("Approved timesheets cannot be deleted.")
         super().delete(*args, **kwargs)
+
+
+class TimesheetApproval(TimeStampedModel):
+    """One step in a Timesheet's Send -> Supervisor -> ... -> HR approval
+    chain - a permanent record of who approved it and when, at each level,
+    even after the chain has moved on or the timesheet is fully approved."""
+
+    timesheet = models.ForeignKey(
+        Timesheet, on_delete=models.CASCADE, related_name="approval_steps"
+    )
+    approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="timesheet_approval_steps"
+    )
+    comment = models.TextField(blank=True, default="")
+    is_final = models.BooleanField(
+        default=False,
+        help_text="True if this step was the final HR (Admin) approval that closed the timesheet.",
+    )
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.approver} approved {self.timesheet} ({'final' if self.is_final else 'forwarded'})"
+
+
+class TimesheetDay(TimeStampedModel):
+    """One calendar day's entry within a Timesheet's period. Powers the
+    day-by-day calendar grid - auto-filled from Attendance, but editable
+    by the employee or their manager (to mark a Holiday, a specific type
+    of Leave, etc.) until the parent Timesheet is approved."""
+
+    class DayType(models.TextChoices):
+        WORK = "WORK", "Work"
+        WEEKEND = "WEEKEND", "Weekend"
+        HOLIDAY = "HOLIDAY", "Holiday"
+        LEAVE_ANNUAL = "LEAVE_ANNUAL", "Leave (Annual)"
+        LEAVE_UPA = "LEAVE_UPA", "Leave (UPA)"
+        SICK_LEAVE = "SICK_LEAVE", "Sick Leave"
+        LEAVE_OTHER = "LEAVE_OTHER", "Other Leave"
+        ABSENT = "ABSENT", "Absent"
+
+    timesheet = models.ForeignKey(
+        Timesheet, on_delete=models.CASCADE, related_name="days"
+    )
+    date = models.DateField()
+    day_type = models.CharField(max_length=20, choices=DayType.choices, default=DayType.WORK)
+    hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    source = models.CharField(
+        max_length=10,
+        choices=Timesheet.Source.choices,
+        default=Timesheet.Source.AUTO,
+        help_text="AUTO = filled from Attendance; MANUAL = overridden by employee/manager.",
+    )
+
+    class Meta:
+        ordering = ["date"]
+        constraints = [
+            models.UniqueConstraint(fields=["timesheet", "date"], name="one_day_entry_per_timesheet_per_date"),
+        ]
+
+    def __str__(self):
+        return f"{self.timesheet} - {self.date} ({self.day_type})"

@@ -64,6 +64,7 @@ export interface Organisation {
   email: string;
   website: string;
   is_setup_complete: boolean;
+  attendance_enforced: boolean;
   organogram_file: string | null;
   organogram_parse_status: "NOT_PARSED" | "PARSING" | "PARSED" | "FAILED";
   organogram_structure: {
@@ -606,6 +607,137 @@ export interface AttendanceRecord {
   status: "PRESENT" | "LATE" | "ABSENT" | "ON_LEAVE" | "HOLIDAY";
   note: string;
   recorded_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Institution {
+  id: number;
+  name: string;
+  organisation: number;
+  country: string;
+  default_currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimesheetDay {
+  id: number;
+  date: string;
+  day_type: "WORK" | "WEEKEND" | "HOLIDAY" | "LEAVE_ANNUAL" | "LEAVE_UPA" | "SICK_LEAVE" | "LEAVE_OTHER" | "ABSENT";
+  hours: string;
+  source: "AUTO" | "MANUAL";
+}
+
+export interface Timesheet {
+  id: number;
+  user: number;
+  user_name?: string;
+  position?: string;
+  department_name?: string | null;
+  organisation: number;
+  institution: number | null;
+  institution_name?: string | null;
+  currency?: string | null;
+  period_start: string;
+  period_end: string;
+  total_days_worked: number;
+  total_hours: string;
+  annual_leave_days: number;
+  upa_leave_days: number;
+  sick_leave_days: number;
+  holiday_days: number;
+  other_leave_days: number;
+  source: "AUTO" | "MANUAL";
+  status: "DRAFT" | "SUBMITTED" | "APPROVED";
+  accepted_at: string | null;
+  requires_acceptance: boolean;
+  accepted_by: number | null;
+  accepted_by_name?: string | null;
+  approved_at: string | null;
+  approved_by: number | null;
+  approved_by_name?: string | null;
+  approval_comment?: string;
+  current_approver?: number | null;
+  current_approver_name?: string | null;
+  days: TimesheetDay[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollConfiguration {
+  id: number;
+  organisation: number;
+  currency: string;
+  pay_frequency: "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StatutoryScheme {
+  id: number;
+  payroll_configuration: number;
+  name: string;
+  employee_rate: string;
+  employer_rate: string;
+  effective_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaxBracket {
+  id: number;
+  payroll_configuration: number;
+  lower_bound: string;
+  upper_bound: string | null;
+  rate: string;
+  effective_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayslipBreakdownScheme {
+  name: string;
+  employee_rate: string;
+  employer_rate: string;
+  employee_amount: string;
+  employer_amount: string;
+}
+
+export interface PayslipBreakdownTaxBracket {
+  lower_bound: string;
+  upper_bound: string | null;
+  rate: string;
+  taxable_amount: string;
+  tax_amount: string;
+}
+
+export interface Payslip {
+  id: number;
+  user: number;
+  user_name?: string;
+  organisation: number;
+  timesheet: number;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  pay_frequency: string;
+  gross_pay: string;
+  total_statutory_employee: string;
+  total_statutory_employer: string;
+  total_tax: string;
+  total_deductions: string;
+  net_pay: string;
+  breakdown: {
+    statutory_schemes: PayslipBreakdownScheme[];
+    tax_brackets: PayslipBreakdownTaxBracket[];
+  };
+  generated_at: string;
+  hidden_by_employee: boolean;
+  is_payday_soon: boolean;
   created_at: string;
   updated_at: string;
 }

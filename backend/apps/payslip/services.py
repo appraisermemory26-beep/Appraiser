@@ -13,15 +13,15 @@ class PayslipGenerationError(Exception):
     this and turn it into a 400 response."""
 
 
-def _active_schemes(organisation, as_of_date):
+def _active_schemes(payroll_configuration, as_of_date):
     return StatutoryScheme.objects.filter(
-        organisation=organisation, is_active=True, effective_date__lte=as_of_date
+        payroll_configuration=payroll_configuration, is_active=True, effective_date__lte=as_of_date
     )
 
 
-def _active_tax_brackets(organisation, as_of_date):
+def _active_tax_brackets(payroll_configuration, as_of_date):
     return TaxBracket.objects.filter(
-        organisation=organisation, is_active=True, effective_date__lte=as_of_date
+        payroll_configuration=payroll_configuration, is_active=True, effective_date__lte=as_of_date
     ).order_by('lower_bound')
 
 
@@ -60,16 +60,21 @@ def generate_payslip(timesheet: Timesheet) -> Payslip:
     organisation = timesheet.organisation
     user = timesheet.user
 
+    if not timesheet.institution:
+        raise PayslipGenerationError('This Timesheet has no Institution set, so its payroll currency is unknown.')
+
+    currency = timesheet.institution.default_currency
+
     try:
-        config = organisation.payroll_configuration
+        config = PayrollConfiguration.objects.get(organisation=organisation, currency=currency)
     except PayrollConfiguration.DoesNotExist:
         raise PayslipGenerationError(
-            'This organisation has no Payroll Configuration set up yet. Set it up first.'
+            f'No Payroll Configuration set up for {currency} yet. Set one up first.'
         )
 
     gross_pay = user.base_salary
 
-    schemes = list(_active_schemes(organisation, timesheet.period_end))
+    schemes = list(_active_schemes(config, timesheet.period_end))
     statutory_employee_total = Decimal('0')
     statutory_employer_total = Decimal('0')
     scheme_breakdown = []
@@ -87,7 +92,7 @@ def generate_payslip(timesheet: Timesheet) -> Payslip:
         })
 
     taxable_income = gross_pay - statutory_employee_total
-    brackets = list(_active_tax_brackets(organisation, timesheet.period_end))
+    brackets = list(_active_tax_brackets(config, timesheet.period_end))
     total_tax, tax_breakdown = _calculate_tax(taxable_income, brackets)
 
     total_deductions = statutory_employee_total + total_tax

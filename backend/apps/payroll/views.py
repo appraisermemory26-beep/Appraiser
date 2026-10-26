@@ -1,4 +1,5 @@
 ﻿from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.permissions import IsOrganisationMember, IsExecutiveOrAbove
@@ -27,10 +28,15 @@ class StatutorySchemeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOrganisationMember, IsExecutiveOrAbove]
 
     def get_queryset(self):
-        return StatutoryScheme.objects.filter(organisation=self.request.user.organisation)
+        return StatutoryScheme.objects.filter(
+            payroll_configuration__organisation=self.request.user.organisation
+        )
 
     def perform_create(self, serializer):
-        serializer.save(organisation=self.request.user.organisation)
+        config = serializer.validated_data["payroll_configuration"]
+        if config.organisation_id != self.request.user.organisation_id:
+            raise ValidationError({"payroll_configuration": "Not found."})
+        serializer.save()
 
 
 class TaxBracketViewSet(viewsets.ModelViewSet):
@@ -38,7 +44,12 @@ class TaxBracketViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOrganisationMember, IsExecutiveOrAbove]
 
     def get_queryset(self):
-        return TaxBracket.objects.filter(organisation=self.request.user.organisation)
+        return TaxBracket.objects.filter(
+            payroll_configuration__organisation=self.request.user.organisation
+        )
 
     def perform_create(self, serializer):
-        serializer.save(organisation=self.request.user.organisation)
+        config = serializer.validated_data["payroll_configuration"]
+        if config.organisation_id != self.request.user.organisation_id:
+            raise ValidationError({"payroll_configuration": "Not found."})
+        serializer.save()

@@ -1,13 +1,31 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 
-from .models import Timesheet
+from .models import Timesheet, TimesheetDay
+
+
+class TimesheetDaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimesheetDay
+        fields = ["id", "date", "day_type", "hours", "source"]
+        read_only_fields = ["id"]
 
 
 class TimesheetSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    user_name = serializers.CharField(source="user.full_name", read_only=True)
+    position = serializers.CharField(source="user.job_title", read_only=True, default="")
+    department_name = serializers.CharField(source="user.department.name", read_only=True, default=None)
+    institution_name = serializers.CharField(source="institution.name", read_only=True, default=None)
+    currency = serializers.CharField(source="institution.default_currency", read_only=True, default=None)
     approved_by_name = serializers.CharField(
         source="approved_by.get_full_name", read_only=True, default=None
     )
+    accepted_by_name = serializers.CharField(
+        source="accepted_by.get_full_name", read_only=True, default=None
+    )
+    current_approver_name = serializers.CharField(
+        source="current_approver.get_full_name", read_only=True, default=None
+    )
+    days = TimesheetDaySerializer(many=True, read_only=True)
 
     class Meta:
         model = Timesheet
@@ -15,35 +33,55 @@ class TimesheetSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "user_name",
+            "position",
+            "department_name",
             "organisation",
+            "institution",
+            "institution_name",
+            "currency",
             "period_start",
             "period_end",
             "total_days_worked",
             "total_hours",
             "annual_leave_days",
+            "upa_leave_days",
             "sick_leave_days",
             "holiday_days",
             "other_leave_days",
             "source",
             "status",
+            "accepted_at",
+            "accepted_by",
+            "accepted_by_name",
+            "requires_acceptance",
             "approved_at",
             "approved_by",
             "approved_by_name",
+            "approval_comment",
+            "current_approver",
+            "current_approver_name",
+            "days",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
             "id", "user", "organisation", "source", "status",
-            "approved_at", "approved_by", "created_at", "updated_at",
+            "accepted_at", "accepted_by", "requires_acceptance",
+            "approved_at", "approved_by", "approval_comment",
+            "current_approver", "created_at", "updated_at",
         ]
 
 
-class TimesheetManualEntrySerializer(serializers.Serializer):
-    period_start = serializers.DateField()
-    period_end = serializers.DateField()
-    total_days_worked = serializers.IntegerField(min_value=0)
-    total_hours = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0)
-    annual_leave_days = serializers.IntegerField(min_value=0, default=0)
-    sick_leave_days = serializers.IntegerField(min_value=0, default=0)
-    holiday_days = serializers.IntegerField(min_value=0, default=0)
-    other_leave_days = serializers.IntegerField(min_value=0, default=0)
+class TimesheetGenerateSerializer(serializers.Serializer):
+    institution = serializers.IntegerField()
+    year = serializers.IntegerField()
+    month = serializers.IntegerField(min_value=1, max_value=12)
+
+
+class TimesheetDayUpdateSerializer(serializers.Serializer):
+    day_type = serializers.ChoiceField(choices=TimesheetDay.DayType.choices)
+    hours = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=0)
+
+
+class TimesheetApproveSerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False, allow_blank=True, default="")

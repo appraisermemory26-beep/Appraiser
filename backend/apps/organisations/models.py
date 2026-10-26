@@ -109,3 +109,29 @@ class ReportingLine(TimeStampedModel):
 
     def __str__(self):
         return f"{self.subordinate} -> {self.supervisor}"
+
+
+class Institution(TimeStampedModel):
+    """A client/institution your employees do work for - separate from the
+    Organisation (platform tenant) itself. Each Timesheet is tied to one
+    Institution, and each Institution carries its own default currency,
+    so payroll can be generated in whatever currency that institution
+    pays in."""
+
+    name = models.CharField(max_length=255)
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name="institutions"
+    )
+    country = models.CharField(max_length=100, blank=True)
+    default_currency = models.CharField(
+        max_length=3, default="USD",
+        help_text="ISO 4217 currency code this institution pays in, e.g. USD, LRD, GHS.",
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = [("name", "organisation")]
+
+    def __str__(self):
+        return f"{self.name} ({self.organisation.name})"

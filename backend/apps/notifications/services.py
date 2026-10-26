@@ -345,3 +345,61 @@ def notify_policy_created(*, policy, created_by):
         entity_id=policy.id,
         exclude_user_ids=[created_by.id] if created_by else None,
     )
+
+
+def notify_timesheet_submitted(*, timesheet):
+    """Notify the first approver in the Send -> Supervisor -> ... -> HR
+    chain once an employee submits their timesheet."""
+    if not timesheet.current_approver_id or not timesheet.organisation_id:
+        return
+    employee_name = _user_display(timesheet.user)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    notify_user(
+        user=timesheet.current_approver,
+        organisation=timesheet.organisation,
+        notification_type="timesheet_submitted",
+        title="Timesheet awaiting your approval",
+        message=f"{employee_name}'s timesheet for {period_label} is awaiting your approval.",
+        entity_type="timesheet",
+        entity_id=timesheet.id,
+    )
+
+
+def notify_timesheet_forwarded(*, timesheet, approver):
+    """Notify the next person up the chain once someone below them in the
+    chain approves their step and forwards it onward."""
+    if not timesheet.current_approver_id or not timesheet.organisation_id:
+        return
+    employee_name = _user_display(timesheet.user)
+    approver_name = _user_display(approver)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    notify_user(
+        user=timesheet.current_approver,
+        organisation=timesheet.organisation,
+        notification_type="timesheet_submitted",
+        title="Timesheet awaiting your approval",
+        message=(
+            f"{employee_name}'s timesheet for {period_label} is awaiting your approval "
+            f"(forwarded by {approver_name})."
+        ),
+        entity_type="timesheet",
+        entity_id=timesheet.id,
+    )
+
+
+def notify_timesheet_approved(*, timesheet, approved_by):
+    """Notify the employee once HR (an Admin) gives the final approval
+    that closes out the chain."""
+    if not timesheet.user_id or not timesheet.organisation_id:
+        return
+    approver_name = _user_display(approved_by)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    notify_user(
+        user=timesheet.user,
+        organisation=timesheet.organisation,
+        notification_type="timesheet_approved",
+        title="Timesheet approved",
+        message=f"Your timesheet for {period_label} has been fully approved by {approver_name}.",
+        entity_type="timesheet",
+        entity_id=timesheet.id,
+    )
