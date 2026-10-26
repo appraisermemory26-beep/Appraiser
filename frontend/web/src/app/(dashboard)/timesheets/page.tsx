@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { Modal } from "@/components/ui/modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormInput } from "@/components/ui/form-input";
+import { FormTextarea } from "@/components/ui/form-textarea";
 import { Button } from "@/components/ui/button";
 import { TimesheetAiChat } from "./TimesheetAiChat";
 import { getLiberiaHolidayMap } from "@/lib/liberiaHolidays";
@@ -418,6 +419,7 @@ export default function TimesheetsPage() {
   const [showApprove, setShowApprove] = useState(false);
   const [approveComment, setApproveComment] = useState(COMMENT_PRESETS[0]);
   const [approveCustom, setApproveCustom] = useState("");
+  const [actionComment, setActionComment] = useState("");
   const [approving, setApproving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -426,6 +428,22 @@ export default function TimesheetsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Deep link from a Task ("Approve timesheet: ...") - jump straight to
+  // the exact timesheet it points at, by switching the month/year filter
+  // to match its period ("selected" is derived from periodYear/periodMonth).
+  useEffect(() => {
+    if (typeof window === "undefined" || timesheets.length === 0) return;
+    const approveId = new URLSearchParams(window.location.search).get("approve");
+    if (!approveId) return;
+    const match = timesheets.find((t) => String(t.id) === approveId);
+    if (match) {
+      const d = toDate(match.period_start);
+      setPeriodYear(d.getFullYear());
+      setPeriodMonth(d.getMonth() + 1);
+      setShowApprove(true);
+    }
+  }, [timesheets]);
 
   async function load() {
     setLoading(true);
@@ -477,7 +495,7 @@ export default function TimesheetsPage() {
     !!selected?.requires_acceptance &&
     !selected?.accepted_at;
   const canSubmit =
-    selected?.status === "DRAFT" &&
+    (selected?.status === "DRAFT" || selected?.status === "REVISE_REQUESTED") &&
     selected?.user === user?.id &&
     (!selected?.requires_acceptance || !!selected?.accepted_at);
   const canApprove =
@@ -601,12 +619,32 @@ export default function TimesheetsPage() {
     setApproving(true);
     try {
       const comment = approveComment === COMMENT_PRESETS[COMMENT_PRESETS.length - 1] ? approveCustom : approveComment;
-      await api.post(`/api/v1/timesheets/${selected.id}/approve/`, { comment });
+      await api.post(`/api/v1/timesheets/${selected.id}/approve/`, { action: "APPROVE", comment });
       toast.success("Timesheet approved.");
       setShowApprove(false);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to approve timesheet.");
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  async function handleReviewAction(action: "REVISE" | "REJECT") {
+    if (!selected) return;
+    if (!actionComment.trim()) {
+      toast.error("Please provide a reason/comment.");
+      return;
+    }
+    setApproving(true);
+    try {
+      await api.post(`/api/v1/timesheets/${selected.id}/approve/`, { action, comment: actionComment });
+      toast.success(action === "REVISE" ? "Sent back for revision." : "Timesheet rejected.");
+      setShowApprove(false);
+      setActionComment("");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update timesheet.");
     } finally {
       setApproving(false);
     }
@@ -853,6 +891,25 @@ export default function TimesheetsPage() {
               onChange={(e) => setApproveCustom(e.target.value)}
             />
           )}
+
+          <div className="pt-2" style={{ borderTop: "1px solid #E5E7EB" }}>
+            <FormTextarea
+              name="action_comment"
+              label="Reason (required to request revision or reject)"
+              rows={3}
+              value={actionComment}
+              onChange={(e) => setActionComment(e.target.value)}
+            />
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="secondary" size="md" onClick={() => handleReviewAction("REVISE")} disabled={approving}>
+                Request Revision
+              </Button>
+              <Button variant="danger" size="md" onClick={() => handleReviewAction("REJECT")} disabled={approving}>
+                Reject
+              </Button>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" size="md" onClick={() => setShowApprove(false)}>
               Cancel
@@ -1374,6 +1431,20 @@ function TimesheetView({
       {selected.status === "SUBMITTED" && selected.current_approver_name && (
         <div className="ts-flag" style={{ marginTop: 20 }}>
           Awaiting approval from: {selected.current_approver_name}
+        </div>
+      )}
+
+      {selected.status === "REVISE_REQUESTED" && (
+        <div className="ts-flag" style={{ marginTop: 20, background: "#FEF3C7", color: "#92400E" }}>
+          Revision requested{selected.last_action_by_name ? ` by ${selected.last_action_by_name}` : ""}
+          {selected.last_action_comment ? `: ${selected.last_action_comment}` : ""}. Edit the days below and resubmit.
+        </div>
+      )}
+
+      {selected.status === "REJECTED" && (
+        <div className="ts-flag" style={{ marginTop: 20, background: "#FEE2E2", color: "#991B1B" }}>
+          Rejected{selected.last_action_by_name ? ` by ${selected.last_action_by_name}` : ""}
+          {selected.last_action_comment ? `: ${selected.last_action_comment}` : ""}.
         </div>
       )}
 

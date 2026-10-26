@@ -201,7 +201,11 @@ class TimesheetViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            timesheet = approve_timesheet(timesheet, approver, serializer.validated_data.get("comment", ""))
+            timesheet = approve_timesheet(
+                timesheet, approver,
+                serializer.validated_data.get("comment", ""),
+                serializer.validated_data.get("action", "APPROVE"),
+            )
         except TimesheetGenerationError as exc:
             return Response({"error": str(exc)}, status=400)
         return Response(TimesheetSerializer(timesheet).data)

@@ -146,6 +146,7 @@ export interface Task {
   project: number | null;
   parent_task: number | null;
   linked_jd: number | null;
+  linked_timesheet?: number | null;
   progress_percentage: number;
   priority: TaskPriority;
   is_inherited?: boolean;
@@ -650,7 +651,7 @@ export interface Timesheet {
   holiday_days: number;
   other_leave_days: number;
   source: "AUTO" | "MANUAL";
-  status: "DRAFT" | "SUBMITTED" | "APPROVED";
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REVISE_REQUESTED" | "REJECTED";
   accepted_at: string | null;
   requires_acceptance: boolean;
   accepted_by: number | null;
@@ -661,6 +662,10 @@ export interface Timesheet {
   approval_comment?: string;
   current_approver?: number | null;
   current_approver_name?: string | null;
+  last_action_by?: number | null;
+  last_action_by_name?: string | null;
+  last_action_at?: string | null;
+  last_action_comment?: string;
   days: TimesheetDay[];
   created_at: string;
   updated_at: string;

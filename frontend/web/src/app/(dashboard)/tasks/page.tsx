@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   CheckSquare,
@@ -214,6 +215,7 @@ function getTransitionActions(
 export default function TasksPage() {
   const toast = useToast();
   const { user } = useAuth();
+  const router = useRouter();
 
   // ── Data state ──────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -328,6 +330,10 @@ export default function TasksPage() {
         const task = await api.get<Task>(
           `/api/v1/tasks/tasks/${taskId}/`
         );
+        if (task.linked_timesheet) {
+          router.push(`/timesheets?approve=${task.linked_timesheet}`);
+          return;
+        }
         try {
           const session = await api.post<{ time_log_id?: number }>(
             `/api/v1/tasks/tasks/${taskId}/start-work/`

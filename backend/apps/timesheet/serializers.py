@@ -25,6 +25,9 @@ class TimesheetSerializer(serializers.ModelSerializer):
     current_approver_name = serializers.CharField(
         source="current_approver.get_full_name", read_only=True, default=None
     )
+    last_action_by_name = serializers.CharField(
+        source="last_action_by.get_full_name", read_only=True, default=None
+    )
     days = TimesheetDaySerializer(many=True, read_only=True)
 
     class Meta:
@@ -60,6 +63,10 @@ class TimesheetSerializer(serializers.ModelSerializer):
             "approval_comment",
             "current_approver",
             "current_approver_name",
+            "last_action_by",
+            "last_action_by_name",
+            "last_action_at",
+            "last_action_comment",
             "days",
             "created_at",
             "updated_at",
@@ -68,7 +75,8 @@ class TimesheetSerializer(serializers.ModelSerializer):
             "id", "user", "organisation", "source", "status",
             "accepted_at", "accepted_by", "requires_acceptance",
             "approved_at", "approved_by", "approval_comment",
-            "current_approver", "created_at", "updated_at",
+            "current_approver", "last_action_by", "last_action_at", "last_action_comment",
+            "created_at", "updated_at",
         ]
 
 
@@ -84,4 +92,10 @@ class TimesheetDayUpdateSerializer(serializers.Serializer):
 
 
 class TimesheetApproveSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=["APPROVE", "REVISE", "REJECT"], required=False, default="APPROVE")
     comment = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, data):
+        if data.get("action") in ("REVISE", "REJECT") and not data.get("comment", "").strip():
+            raise serializers.ValidationError({"comment": "A reason is required to request revision or reject."})
+        return data

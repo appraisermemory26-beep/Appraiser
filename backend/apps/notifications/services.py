@@ -403,3 +403,44 @@ def notify_timesheet_approved(*, timesheet, approved_by):
         entity_type="timesheet",
         entity_id=timesheet.id,
     )
+
+
+def notify_timesheet_revise_requested(*, timesheet, requested_by, comment):
+    """Notify the employee once a step in the chain sends their timesheet
+    back for changes instead of approving it."""
+    if not timesheet.user_id or not timesheet.organisation_id:
+        return
+    requester_name = _user_display(requested_by)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    notify_user(
+        user=timesheet.user,
+        organisation=timesheet.organisation,
+        notification_type="timesheet_revise_requested",
+        title="Timesheet needs changes",
+        message=(
+            f"{requester_name} requested changes to your timesheet for {period_label}. "
+            f"Reason: {comment}"
+        ),
+        entity_type="timesheet",
+        entity_id=timesheet.id,
+    )
+
+
+def notify_timesheet_rejected(*, timesheet, rejected_by, comment):
+    """Notify the employee once their timesheet is rejected outright."""
+    if not timesheet.user_id or not timesheet.organisation_id:
+        return
+    rejecter_name = _user_display(rejected_by)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    notify_user(
+        user=timesheet.user,
+        organisation=timesheet.organisation,
+        notification_type="timesheet_rejected",
+        title="Timesheet rejected",
+        message=(
+            f"{rejecter_name} rejected your timesheet for {period_label}. "
+            f"Reason: {comment}"
+        ),
+        entity_type="timesheet",
+        entity_id=timesheet.id,
+    )

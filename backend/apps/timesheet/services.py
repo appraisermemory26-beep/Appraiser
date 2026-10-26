@@ -9,9 +9,12 @@ from apps.attendance.models import AttendanceRecord
 from apps.notifications.services import (
     notify_timesheet_approved,
     notify_timesheet_forwarded,
+    notify_timesheet_rejected,
+    notify_timesheet_revise_requested,
     notify_timesheet_submitted,
 )
 from apps.organisations.models import Institution
+from apps.tasks.models import Task, TaskStatusChange
 
 from .models import Timesheet, TimesheetDay, TimesheetApproval
 
@@ -285,9 +288,48 @@ def _next_approver_after(current_user, organisation):
     return current_user.reports_to or _first_admin(organisation)
 
 
+def _create_approval_task(timesheet, approver):
+    """Auto-create the 'Approve timesheet' to-do for whoever must act next,
+    so it shows up in their Task list (not just the notification bell) -
+    clicking it takes them straight to this timesheet."""
+    if not approver:
+        return
+    employee_name = f"{timesheet.user.first_name} {timesheet.user.last_name}".strip() or str(timesheet.user)
+    period_label = timesheet.period_start.strftime("%B %Y")
+    task = Task.objects.create(
+        title=f"Approve timesheet: {employee_name} - {period_label}",
+        description=f"{employee_name}'s timesheet for {period_label} is awaiting your approval.",
+        status=Task.Status.ASSIGNED,
+        priority=Task.Priority.MEDIUM,
+        assigned_to=approver,
+        created_by=timesheet.user,
+        organisation=timesheet.organisation,
+        linked_timesheet=timesheet,
+    )
+    TaskStatusChange.objects.create(
+        task=task, from_status=Task.Status.CREATED, to_status=Task.Status.ASSIGNED,
+        changed_by=timesheet.user, comment="Auto-created for timesheet approval.",
+    )
+
+
+def _close_approval_tasks(timesheet, closed_by, note=""):
+    """Close out any still-open 'Approve timesheet' to-dos for this timesheet,
+    e.g. once the current approver has acted and it's moved on, or the chain
+    has ended (approved / sent back for revision / rejected)."""
+    open_tasks = timesheet.tasks.exclude(status=Task.Status.CLOSED)
+    for task in open_tasks:
+        old_status = task.status
+        task.status = Task.Status.CLOSED
+        task.save(update_fields=["status", "updated_at"], skip_transition_check=True)
+        TaskStatusChange.objects.create(
+            task=task, from_status=old_status, to_status=Task.Status.CLOSED,
+            changed_by=closed_by, comment=note or "Closed automatically.",
+        )
+
+
 @transaction.atomic
 def submit_timesheet(timesheet: Timesheet) -> Timesheet:
-    if timesheet.status != Timesheet.Status.DRAFT:
+    if timesheet.status not in (Timesheet.Status.DRAFT, Timesheet.Status.REVISE_REQUESTED):
         raise TimesheetGenerationError("Only a draft timesheet can be submitted.")
     if timesheet.requires_acceptance and not timesheet.accepted_at:
         raise TimesheetGenerationError("You must accept this draft before submitting it.")
@@ -295,17 +337,57 @@ def submit_timesheet(timesheet: Timesheet) -> Timesheet:
     timesheet.current_approver = _next_approver_after(timesheet.user, timesheet.organisation)
     timesheet.save(update_fields=["status", "current_approver", "updated_at"])
     notify_timesheet_submitted(timesheet=timesheet)
+    _create_approval_task(timesheet, timesheet.current_approver)
     return timesheet
 
 
 @transaction.atomic
-def approve_timesheet(timesheet: Timesheet, approver, comment: str = "") -> Timesheet:
+def approve_timesheet(timesheet: Timesheet, approver, comment: str = "", action: str = "APPROVE") -> Timesheet:
     if timesheet.status != Timesheet.Status.SUBMITTED:
         raise TimesheetGenerationError("Only a submitted timesheet can be approved.")
+
+    if action in ("REVISE", "REJECT") and not comment.strip():
+        raise TimesheetGenerationError("Please provide a reason/comment.")
+
     is_hr_step = approver.role == User.Role.ADMIN
 
+    if action == "REVISE":
+        TimesheetApproval.objects.create(
+            timesheet=timesheet, approver=approver, action=TimesheetApproval.Action.REVISE,
+            comment=comment, is_final=False,
+        )
+        timesheet.status = Timesheet.Status.REVISE_REQUESTED
+        timesheet.current_approver = None
+        timesheet.last_action_by = approver
+        timesheet.last_action_at = timezone.now()
+        timesheet.last_action_comment = comment
+        timesheet.save(update_fields=[
+            "status", "current_approver", "last_action_by", "last_action_at", "last_action_comment", "updated_at",
+        ])
+        _close_approval_tasks(timesheet, closed_by=approver, note=f"Revision requested: {comment}")
+        notify_timesheet_revise_requested(timesheet=timesheet, requested_by=approver, comment=comment)
+        return timesheet
+
+    if action == "REJECT":
+        TimesheetApproval.objects.create(
+            timesheet=timesheet, approver=approver, action=TimesheetApproval.Action.REJECT,
+            comment=comment, is_final=False,
+        )
+        timesheet.status = Timesheet.Status.REJECTED
+        timesheet.current_approver = None
+        timesheet.last_action_by = approver
+        timesheet.last_action_at = timezone.now()
+        timesheet.last_action_comment = comment
+        timesheet.save(update_fields=[
+            "status", "current_approver", "last_action_by", "last_action_at", "last_action_comment", "updated_at",
+        ])
+        _close_approval_tasks(timesheet, closed_by=approver, note=f"Rejected: {comment}")
+        notify_timesheet_rejected(timesheet=timesheet, rejected_by=approver, comment=comment)
+        return timesheet
+
     TimesheetApproval.objects.create(
-        timesheet=timesheet, approver=approver, comment=comment, is_final=is_hr_step,
+        timesheet=timesheet, approver=approver, action=TimesheetApproval.Action.APPROVE,
+        comment=comment, is_final=is_hr_step,
     )
 
     if is_hr_step:
@@ -317,9 +399,12 @@ def approve_timesheet(timesheet: Timesheet, approver, comment: str = "") -> Time
         timesheet.save(update_fields=[
             "status", "approved_by", "approved_at", "approval_comment", "current_approver", "updated_at",
         ])
+        _close_approval_tasks(timesheet, closed_by=approver, note="Approved (final).")
         notify_timesheet_approved(timesheet=timesheet, approved_by=approver)
     else:
+        _close_approval_tasks(timesheet, closed_by=approver, note="Approved - forwarded to next approver.")
         timesheet.current_approver = _next_approver_after(approver, timesheet.organisation)
         timesheet.save(update_fields=["current_approver", "updated_at"])
+        _create_approval_task(timesheet, timesheet.current_approver)
         notify_timesheet_forwarded(timesheet=timesheet, approver=approver)
     return timesheet

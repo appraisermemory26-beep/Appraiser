@@ -74,6 +74,13 @@ class Task(TimeStampedModel):
         "jd_management.JobDescription", on_delete=models.SET_NULL,
         related_name="tasks", null=True, blank=True,
     )
+    linked_timesheet = models.ForeignKey(
+        "timesheet.Timesheet", on_delete=models.CASCADE,
+        related_name="tasks", null=True, blank=True,
+        help_text="Set only for an auto-created 'Approve timesheet' task - lets the "
+                  "Tasks screen jump straight to the pending timesheet instead of "
+                  "opening the normal Task detail view.",
+    )
     progress_percentage = models.PositiveIntegerField(
         default=0, validators=[MinValueValidator(0), MaxValueValidator(100)]
     )

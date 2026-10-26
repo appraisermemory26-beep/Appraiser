@@ -13,6 +13,8 @@ class Timesheet(TimeStampedModel):
         DRAFT = "DRAFT", "Draft"
         SUBMITTED = "SUBMITTED", "Submitted"
         APPROVED = "APPROVED", "Approved"
+        REVISE_REQUESTED = "REVISE_REQUESTED", "Revision Requested"
+        REJECTED = "REJECTED", "Rejected"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="timesheets"
@@ -82,6 +84,21 @@ class Timesheet(TimeStampedModel):
                   "'Regular at work and dedicated' or 'Irregular at work and not focused'.",
     )
 
+    last_action_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timesheets_last_actioned",
+        help_text="Who most recently requested revision or rejected this timesheet.",
+    )
+    last_action_at = models.DateTimeField(null=True, blank=True)
+    last_action_comment = models.TextField(
+        blank=True,
+        default="",
+        help_text="Reason given for the most recent Revise or Reject decision.",
+    )
+
     class Meta:
         ordering = ["-period_start"]
         constraints = [
@@ -113,8 +130,13 @@ class Timesheet(TimeStampedModel):
 
 class TimesheetApproval(TimeStampedModel):
     """One step in a Timesheet's Send -> Supervisor -> ... -> HR approval
-    chain - a permanent record of who approved it and when, at each level,
+    chain - a permanent record of who acted on it and when, at each level,
     even after the chain has moved on or the timesheet is fully approved."""
+
+    class Action(models.TextChoices):
+        APPROVE = "APPROVE", "Approve"
+        REVISE = "REVISE", "Revise"
+        REJECT = "REJECT", "Reject"
 
     timesheet = models.ForeignKey(
         Timesheet, on_delete=models.CASCADE, related_name="approval_steps"
@@ -122,6 +144,7 @@ class TimesheetApproval(TimeStampedModel):
     approver = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="timesheet_approval_steps"
     )
+    action = models.CharField(max_length=10, choices=Action.choices, default=Action.APPROVE)
     comment = models.TextField(blank=True, default="")
     is_final = models.BooleanField(
         default=False,
@@ -132,7 +155,7 @@ class TimesheetApproval(TimeStampedModel):
         ordering = ["created_at"]
 
     def __str__(self):
-        return f"{self.approver} approved {self.timesheet} ({'final' if self.is_final else 'forwarded'})"
+        return f"{self.approver} {self.action.lower()}d {self.timesheet}"
 
 
 class TimesheetDay(TimeStampedModel):

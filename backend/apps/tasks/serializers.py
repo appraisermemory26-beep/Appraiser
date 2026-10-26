@@ -62,11 +62,11 @@ class TaskSerializer(serializers.ModelSerializer):
             "deadline", "deadline_type", "status", "assigned_to",
             "assigned_to_name", "created_by", "created_by_name",
             "organisation", "department", "department_name", "project",
-            "parent_task", "linked_jd", "progress_percentage", "priority",
+            "parent_task", "linked_jd", "linked_timesheet", "progress_percentage", "priority",
             "is_inherited", "inherited_from_name",
             "outputs", "reviews", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "task_id", "created_by", "organisation", "created_at", "updated_at"]
+        read_only_fields = ["id", "task_id", "created_by", "organisation", "linked_timesheet", "created_at", "updated_at"]
 
     def validate_status(self, value):
         """Validate status transitions when updating via PATCH/PUT."""
