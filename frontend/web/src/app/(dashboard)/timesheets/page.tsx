@@ -441,7 +441,6 @@ export default function TimesheetsPage() {
       const d = toDate(match.period_start);
       setPeriodYear(d.getFullYear());
       setPeriodMonth(d.getMonth() + 1);
-      setShowApprove(true);
     }
   }, [timesheets]);
 
