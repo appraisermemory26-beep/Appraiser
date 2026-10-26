@@ -441,6 +441,7 @@ export default function TimesheetsPage() {
       const d = toDate(match.period_start);
       setPeriodYear(d.getFullYear());
       setPeriodMonth(d.getMonth() + 1);
+      setViewUserId(match.user);
     }
   }, [timesheets]);
 
@@ -465,14 +466,25 @@ export default function TimesheetsPage() {
   const isStrict = organisation?.attendance_enforced ?? true;
   const isAdmin = user?.role === "ADMIN";
 
+  // Which employee's timesheet is open - defaults to your own, but is set
+  // to the target employee when you arrive via a timesheet-approval Task,
+  // so an approver seeing their own timesheet for the same period doesn't
+  // accidentally show instead of the employee's.
+  const [viewUserId, setViewUserId] = useState<number | null>(null);
+
   const selected = useMemo(() => {
+    const targetUserId = viewUserId ?? user?.id;
     return (
       timesheets.find((t) => {
         const d = toDate(t.period_start);
-        return d.getFullYear() === periodYear && d.getMonth() + 1 === periodMonth;
+        return (
+          d.getFullYear() === periodYear &&
+          d.getMonth() + 1 === periodMonth &&
+          t.user === targetUserId
+        );
       }) ?? null
     );
-  }, [timesheets, periodYear, periodMonth]);
+  }, [timesheets, periodYear, periodMonth, viewUserId, user?.id]);
 
   const grid = useMemo(() => {
     if (!selected) return [];
