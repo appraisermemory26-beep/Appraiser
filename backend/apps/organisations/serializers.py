@@ -40,11 +40,11 @@ class ReportingLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReportingLine
         fields = ["id", "subordinate", "supervisor", "organisation", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "organisation", "created_at", "updated_at"]
 
 
 class InstitutionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Institution
         fields = ["id", "name", "organisation", "country", "default_currency", "is_active", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "organisation", "created_at", "updated_at"]
