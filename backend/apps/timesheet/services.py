@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -291,11 +291,17 @@ def _next_approver_after(current_user, organisation):
 def _create_approval_task(timesheet, approver):
     """Auto-create the 'Approve timesheet' to-do for whoever must act next,
     so it shows up in their Task list (not just the notification bell) -
-    clicking it takes them straight to this timesheet."""
+    clicking it takes them straight to this timesheet. Its deadline is the
+    last day of the timesheet's month (the 30th, or the 31st for a
+    31-day month) - the official cutoff for submission and approval."""
     if not approver:
         return
     employee_name = f"{timesheet.user.first_name} {timesheet.user.last_name}".strip() or str(timesheet.user)
     period_label = timesheet.period_start.strftime("%B %Y")
+    last_day = monthrange(timesheet.period_start.year, timesheet.period_start.month)[1]
+    approval_deadline = timezone.make_aware(
+        datetime(timesheet.period_start.year, timesheet.period_start.month, last_day, 23, 59, 59)
+    )
     task = Task.objects.create(
         title=f"Approve timesheet: {employee_name} - {period_label}",
         description=f"{employee_name}'s timesheet for {period_label} is awaiting your approval.",
@@ -305,6 +311,8 @@ def _create_approval_task(timesheet, approver):
         created_by=timesheet.user,
         organisation=timesheet.organisation,
         linked_timesheet=timesheet,
+        deadline=approval_deadline,
+        deadline_type=Task.DeadlineType.MONTHLY,
     )
     TaskStatusChange.objects.create(
         task=task, from_status=Task.Status.CREATED, to_status=Task.Status.ASSIGNED,
