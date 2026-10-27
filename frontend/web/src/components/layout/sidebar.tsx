@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import clsx from "clsx";
 import { useState } from "react";
 import { sidebarNavigation } from "@/lib/constants";
@@ -18,6 +18,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   return (
     <>
@@ -79,8 +80,67 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </p>
             )}
             {visibleItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const hasChildren = !!item.children && item.children.length > 0;
+              const isActive = !hasChildren && (pathname === item.href || pathname.startsWith(item.href + "/"));
+              const isParentActive = hasChildren && (pathname === item.href || pathname.startsWith(item.href + "/"));
+              const isOpen = hasChildren && (isParentActive || openGroups.has(item.href));
               const Icon = item.icon;
+
+              if (hasChildren) {
+                return (
+                  <div key={item.href}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(item.href)) next.delete(item.href);
+                          else next.add(item.href);
+                          return next;
+                        })
+                      }
+                      className={clsx(
+                        "mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 cursor-pointer",
+                        collapsed && "justify-center px-0"
+                      )}
+                      style={{
+                        backgroundColor: isParentActive ? "var(--accent-muted)" : "transparent",
+                        color: isParentActive ? "var(--accent)" : "var(--text-secondary)",
+                      }}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon className="h-[18px] w-[18px] shrink-0" />
+                      {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+                      {!collapsed && (
+                        <ChevronDown
+                          className={clsx("h-3.5 w-3.5 shrink-0 transition-transform duration-150", isOpen && "rotate-180")}
+                        />
+                      )}
+                    </button>
+                    {!collapsed && isOpen && (
+                      <div className="ml-4 mt-0.5 mb-1 flex flex-col gap-0.5 border-l pl-3" style={{ borderColor: "var(--border)" }}>
+                        {item.children!.map((child) => {
+                          const childActive = pathname === child.href;
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              className="rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150"
+                              style={{
+                                backgroundColor: childActive ? "var(--accent-muted)" : "transparent",
+                                color: childActive ? "var(--accent)" : "var(--text-secondary)",
+                              }}
+                            >
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.href}

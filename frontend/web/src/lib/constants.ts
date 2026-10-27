@@ -29,6 +29,7 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   roles?: string[]; // if undefined, visible to all
+  children?: { label: string; href: string }[]; // renders as an expandable dropdown instead of a direct link
 }
 
 export interface NavGroup {
@@ -59,7 +60,15 @@ export const sidebarNavigation: NavGroup[] = [
   {
     title: "PAYROLL",
     items: [
-      { label: "Timesheets", href: "/timesheets", icon: Clock },
+      {
+        label: "Timesheets",
+        href: "/timesheets",
+        icon: Clock,
+        children: [
+          { label: "My Timesheets", href: "/timesheets" },
+          { label: "Team Approvals", href: "/timesheets/approvals" },
+        ],
+      },
       { label: "Payslips", href: "/payslips", icon: Receipt },
       { label: "Payroll Configuration", href: "/payroll-configuration", icon: Wallet, roles: ["EXECUTIVE", "BOARD_MEMBER", "ADMIN"] },
       { label: "Institutions", href: "/institutions", icon: Landmark, roles: ["EXECUTIVE", "BOARD_MEMBER", "ADMIN"] },
