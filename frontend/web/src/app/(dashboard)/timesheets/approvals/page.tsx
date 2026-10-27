@@ -30,7 +30,7 @@ export default function TeamApprovalsPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api.get<Timesheet[]>("/api/v1/timesheet/timesheets/pending-approvals/");
+      const data = await api.get<Timesheet[]>("/api/v1/timesheets/pending-approvals/");
       setItems(data);
       setSelected(new Set(data.map((t) => t.id)));
     } catch (err) {
@@ -68,7 +68,7 @@ export default function TeamApprovalsPage() {
     setBusy(true);
     try {
       const result = await api.post<{ approved: number[]; failed: { id: number; error: string }[] }>(
-        "/api/v1/timesheet/timesheets/mass-approve/",
+        "/api/v1/timesheets/mass-approve/",
         { timesheet_ids: Array.from(selected), action, comment }
       );
       if (result.approved.length > 0) {
