@@ -10,9 +10,14 @@ class OrganisationSerializer(serializers.ModelSerializer):
             "id", "name", "slug", "logo", "address", "phone", "email", "website",
             "is_setup_complete", "attendance_enforced", "organogram_file",
             "organogram_parse_status", "organogram_structure", "organogram_parsed_at",
+            "strict_mode_consented_by", "strict_mode_consented_at",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "organogram_parse_status", "organogram_structure", "organogram_parsed_at", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "organogram_parse_status", "organogram_structure", "organogram_parsed_at",
+            "strict_mode_consented_by", "strict_mode_consented_at",
+            "created_at", "updated_at",
+        ]
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

@@ -43,8 +43,30 @@ class OrganisationViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old_org = self.get_object()
         old_organogram = old_org.organogram_file or None
+        was_strict = old_org.attendance_enforced
         instance = serializer.save()
         new_organogram = instance.organogram_file or None
+
+        # Strict Mode is a one-time supervisor consent: stamp who/when it was
+        # switched ON, and clear that consent if it's switched back OFF so
+        # turning it on again later asks for consent afresh.
+        if instance.attendance_enforced and not was_strict:
+            instance.strict_mode_consented_by = self.request.user
+            instance.strict_mode_consented_at = timezone.now()
+            instance.save(update_fields=["strict_mode_consented_by", "strict_mode_consented_at"])
+            AuditLog.objects.create(
+                event_type="strict_mode_consented",
+                event_category="ADMINISTRATIVE",
+                user=self.request.user,
+                organisation=self.request.user.organisation,
+                description=f"{self.request.user} consented to switch '{instance.name}' into Strict Mode.",
+                entity_type="organisation",
+                entity_id=instance.id,
+            )
+        elif not instance.attendance_enforced and was_strict:
+            instance.strict_mode_consented_by = None
+            instance.strict_mode_consented_at = None
+            instance.save(update_fields=["strict_mode_consented_by", "strict_mode_consented_at"])
 
         AuditLog.objects.create(
             event_type="org_updated",
