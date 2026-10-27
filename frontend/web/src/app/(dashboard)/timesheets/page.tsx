@@ -1439,6 +1439,21 @@ function TimesheetView({
         </div>
       )}
 
+      {(selected.status === "DRAFT" || selected.status === "REVISE_REQUESTED") && (() => {
+        const periodDate = toDate(selected.period_start);
+        const submitDeadline = new Date(periodDate.getFullYear(), periodDate.getMonth(), 27);
+        const submitDeadlineLabel = submitDeadline.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+        return (
+          <div className="ts-flag" style={{ marginTop: 20, background: "#DBEAFE", color: "#1E40AF" }}>
+            Submit by {submitDeadlineLabel} - the monthly submission deadline.
+          </div>
+        );
+      })()}
+
       {selected.status === "SUBMITTED" && selected.current_approver_name && (
         <div className="ts-flag" style={{ marginTop: 20 }}>
           Awaiting approval from: {selected.current_approver_name}
