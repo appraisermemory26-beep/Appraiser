@@ -210,6 +210,62 @@ class TimesheetViewSet(viewsets.ModelViewSet):
             return Response({"error": str(exc)}, status=400)
         return Response(TimesheetSerializer(timesheet).data)
 
+    @action(detail=False, methods=["get"], url_path="pending-approvals")
+    def pending_approvals(self, request):
+        """Every timesheet - across every employee and period - that is
+        currently waiting on this user's approval. Feeds the Team
+        Approvals screen so a supervisor can act on several at once
+        instead of opening one employee/period at a time."""
+        user = request.user
+        qs = (
+            Timesheet.objects.filter(organisation=user.organisation, status="SUBMITTED")
+            .exclude(user_id=user.id)
+        )
+        if user.role != "ADMIN":
+            qs = qs.filter(current_approver_id=user.id)
+        qs = qs.order_by("user__first_name", "user__last_name", "-period_start")
+        return Response(TimesheetSerializer(qs, many=True).data)
+
+    @action(detail=False, methods=["post"], url_path="mass-approve")
+    def mass_approve(self, request):
+        """Act on several employees' timesheets in one call - the Team
+        Approvals screen's Approve Selected / Request Revision / Reject
+        buttons. Staff left unchecked there (sorted out) are simply never
+        included in timesheet_ids, so they are untouched."""
+        approver = request.user
+        ids = request.data.get("timesheet_ids") or []
+        if not isinstance(ids, list) or not ids:
+            return Response({"error": "No timesheets were selected."}, status=400)
+
+        serializer = TimesheetApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_value = serializer.validated_data.get("action", "APPROVE")
+        comment = serializer.validated_data.get("comment", "")
+
+        approved_ids = []
+        failed = []
+        timesheets = Timesheet.objects.filter(id__in=ids, organisation=approver.organisation)
+        by_id = {t.id: t for t in timesheets}
+
+        for timesheet_id in ids:
+            timesheet = by_id.get(timesheet_id)
+            if timesheet is None:
+                failed.append({"id": timesheet_id, "error": "Timesheet not found."})
+                continue
+            if timesheet.user_id == approver.id:
+                failed.append({"id": timesheet_id, "error": "You cannot approve your own timesheet."})
+                continue
+            if timesheet.current_approver_id != approver.id and approver.role != "ADMIN":
+                failed.append({"id": timesheet_id, "error": "Not currently awaiting your approval."})
+                continue
+            try:
+                approve_timesheet(timesheet, approver, comment, action_value)
+                approved_ids.append(timesheet_id)
+            except TimesheetGenerationError as exc:
+                failed.append({"id": timesheet_id, "error": str(exc)})
+
+        return Response({"approved": approved_ids, "failed": failed})
+
     def update(self, request, *args, **kwargs):
         return Response({"error": "Timesheets cannot be edited directly. Use generate, submit, or approve."}, status=403)
 
