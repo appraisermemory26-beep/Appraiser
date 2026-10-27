@@ -400,6 +400,7 @@ export default function TimesheetsPage() {
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [togglingMode, setTogglingMode] = useState(false);
+  const [showStrictConsent, setShowStrictConsent] = useState(false);
 
   const [showGenerate, setShowGenerate] = useState(false);
   const [showAiChat, setShowAiChat] = useState(false);
@@ -752,12 +753,43 @@ export default function TimesheetsPage() {
 
         <div
           className={`ts-modetoggle ${isStrict ? "ts-strict" : "ts-alt"} ${isAdmin ? "ts-clickable" : "ts-readonly"}`}
-          onClick={isAdmin ? handleToggleMode : undefined}
+          onClick={isAdmin ? (isStrict ? handleToggleMode : () => setShowStrictConsent(true)) : undefined}
           title={isAdmin ? "Click to switch mode (organisation-wide)" : "Set by your organisation's Admin"}
         >
           {togglingMode ? "Updating…" : isStrict ? "🔒 Strict Mode" : "📝 Alternative Mode"}
         </div>
       </div>
+
+      <Modal isOpen={showStrictConsent} onClose={() => setShowStrictConsent(false)} title="Enable Strict Mode">
+        <div className="space-y-4">
+          <p style={{ fontSize: 13, color: "#374151", margin: 0, lineHeight: 1.5 }}>
+            Strict Mode turns on automated attendance tracking for your organisation. Going forward, once the
+            monthly approval deadline passes, the system will automatically sign off every employee's
+            still-pending timesheet instead of waiting for a manual click-through.
+          </p>
+          <p style={{ fontSize: 13, color: "#374151", margin: 0, lineHeight: 1.5 }}>
+            This is a one-time consent as the organisation's Admin. Your name and the date will be recorded
+            against this decision. You can switch back to Alternative Mode at any time, which will clear this
+            consent.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" size="md" onClick={() => setShowStrictConsent(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={async () => {
+                setShowStrictConsent(false);
+                await handleToggleMode();
+              }}
+              disabled={togglingMode}
+            >
+              {togglingMode ? "Enabling..." : "I Consent - Enable Strict Mode"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {!isStrict && (
         <div className="ts-manual-note">
