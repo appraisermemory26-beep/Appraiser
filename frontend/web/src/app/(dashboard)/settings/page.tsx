@@ -325,7 +325,7 @@ export default function SettingsPage() {
                     ? profile?.has_signature_pin
                       ? "Signature and PIN on file. Used to sign your documents, such as timesheets."
                       : "Signature on file, but no PIN is set."
-                    : "Upload your signature so the system can use it to sign any document that requires your signature, such as timesheets."}
+                    : "Upload your signature so the system can use it to sign any document that requires your signature. Your signature is safe and protected, and only you have access to it."}
                 </p>
               </div>
               <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
