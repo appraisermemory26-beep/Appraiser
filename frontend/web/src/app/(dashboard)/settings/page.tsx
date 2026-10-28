@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Camera, Loader2, FileSignature } from "lucide-react";
+import { Camera, Loader2, FileSignature, PenLine, UploadCloud } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { FormInput } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [uploadingSignature, setUploadingSignature] = useState(false);
   const [pendingSignatureFile, setPendingSignatureFile] = useState<File | null>(null);
   const [showSignatureAgreement, setShowSignatureAgreement] = useState(false);
+  const [showSignatureGuide, setShowSignatureGuide] = useState(false);
   const [signaturePin, setSignaturePin] = useState("");
   const [signaturePinConfirm, setSignaturePinConfirm] = useState("");
 
@@ -323,7 +324,7 @@ export default function SettingsPage() {
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {profile?.has_signature
                     ? profile?.has_signature_pin
-                      ? "Signature and PIN on file. Used to sign your documents, such as timesheets."
+                      ? "Signature and PIN on file. Used to sign any document that requires your signature."
                       : "Signature on file, but no PIN is set."
                     : "Upload your signature so the system can use it to sign any document that requires your signature. Your signature is safe and protected, and only you have access to it."}
                 </p>
@@ -331,6 +332,14 @@ export default function SettingsPage() {
               <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
                 {uploadingSignature ? "Uploading..." : profile?.has_signature ? "Replace Signature" : "Upload Signature"}
               </Button>
+              <button
+                type="button"
+                onClick={() => setShowSignatureGuide(true)}
+                className="text-xs underline"
+                style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", marginLeft: 8, whiteSpace: "nowrap" }}
+              >
+                How do I get a signature image?
+              </button>
               <input
                 ref={signatureInputRef}
                 type="file"
@@ -381,6 +390,48 @@ export default function SettingsPage() {
                   </Button>
                   <Button variant="primary" size="md" onClick={handleSignatureAgree} disabled={uploadingSignature}>
                     {uploadingSignature ? "Saving..." : "Yes, I Agree - Save Signature"}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
+            <style>{`
+              @keyframes sigGuideStep1 { 0%, 30% { opacity: 1; transform: scale(1); } 33%, 100% { opacity: 0; transform: scale(0.95); } }
+              @keyframes sigGuideStep2 { 0%, 30% { opacity: 0; transform: scale(0.95); } 33%, 63% { opacity: 1; transform: scale(1); } 66%, 100% { opacity: 0; transform: scale(0.95); } }
+              @keyframes sigGuideStep3 { 0%, 63% { opacity: 0; transform: scale(0.95); } 66%, 96% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.95); } }
+              .sig-guide-frame { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; animation-duration: 6s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+              .sig-guide-frame.f1 { animation-name: sigGuideStep1; }
+              .sig-guide-frame.f2 { animation-name: sigGuideStep2; }
+              .sig-guide-frame.f3 { animation-name: sigGuideStep3; }
+            `}</style>
+
+            <Modal isOpen={showSignatureGuide} onClose={() => setShowSignatureGuide(false)} title="How to Upload Your Signature">
+              <div className="space-y-4">
+                <div className="relative" style={{ height: 120, borderRadius: 12, border: "1px solid var(--border)", backgroundColor: "var(--bg-secondary)" }}>
+                  <div className="sig-guide-frame f1">
+                    <PenLine className="h-10 w-10" style={{ color: "var(--text-primary)" }} />
+                    <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>1. Write your signature on paper</span>
+                  </div>
+                  <div className="sig-guide-frame f2">
+                    <Camera className="h-10 w-10" style={{ color: "var(--text-primary)" }} />
+                    <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>2. Take a photo or scan it</span>
+                  </div>
+                  <div className="sig-guide-frame f3">
+                    <UploadCloud className="h-10 w-10" style={{ color: "var(--text-primary)" }} />
+                    <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>3. Save it, then upload it here</span>
+                  </div>
+                </div>
+
+                <ol className="space-y-2 text-sm" style={{ color: "var(--text-secondary)", paddingLeft: 18, listStyleType: "decimal" }}>
+                  <li>Take a pen and a plain sheet of paper, and write your signature.</li>
+                  <li>Take a clear photo of it with your phone, or scan it if you have a scanner.</li>
+                  <li>Save that photo or scan as an image file (PNG or JPG) on your phone or laptop.</li>
+                  <li>Come back here, click &quot;Upload Signature&quot;, and choose that image file.</li>
+                </ol>
+
+                <div className="flex justify-end">
+                  <Button variant="secondary" size="sm" onClick={() => setShowSignatureGuide(false)}>
+                    Got it
                   </Button>
                 </div>
               </div>
