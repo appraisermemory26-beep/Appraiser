@@ -6,6 +6,8 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     succeeded_by_name = serializers.SerializerMethodField()
     full_name = serializers.CharField(read_only=True)
+    has_signature = serializers.SerializerMethodField()
+    has_signature_pin = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -14,12 +16,20 @@ class UserSerializer(serializers.ModelSerializer):
             "role", "employment_status", "organisation", "department",
             "reports_to", "phone", "avatar", "job_title",
             "succeeded_by", "succeeded_by_name",
+            "signature", "signature_consented_at", "has_signature", "has_signature_pin",
             "is_active", "created_at", "updated_at",
         ]
         read_only_fields = [
             "id", "employment_status", "full_name", "succeeded_by_name",
+            "signature", "signature_consented_at", "has_signature", "has_signature_pin",
             "created_at", "updated_at",
         ]
+
+    def get_has_signature(self, obj):
+        return bool(obj.signature)
+
+    def get_has_signature_pin(self, obj):
+        return bool(obj.signature_pin_hash)
 
     def validate_succeeded_by(self, value):
         if value is None:

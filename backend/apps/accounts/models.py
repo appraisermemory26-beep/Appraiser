@@ -60,6 +60,20 @@ class User(AbstractUser, TimeStampedModel):
     )
     phone = models.CharField(max_length=20, blank=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True)
+    signature = models.ImageField(
+        upload_to="signatures/", blank=True,
+        help_text="Personal signature image, used to sign documents such as timesheets.",
+    )
+    signature_consented_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the user agreed to the signature usage terms. Cleared if the signature is replaced.",
+    )
+    signature_pin_hash = models.CharField(
+        max_length=128, blank=True,
+        help_text="Hashed PIN required to apply the signature to a document. The PIN itself is never stored.",
+    )
+    signature_pin_failed_attempts = models.PositiveIntegerField(default=0)
+    signature_pin_locked_until = models.DateTimeField(null=True, blank=True)
     job_title = models.CharField(max_length=150, blank=True)
     succeeded_by = models.ForeignKey(
         "self",

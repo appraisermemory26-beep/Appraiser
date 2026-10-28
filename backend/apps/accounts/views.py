@@ -3,6 +3,7 @@ import os
 import secrets
 
 from django.conf import settings
+from django.utils import timezone
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -151,6 +152,114 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    @action(
+        detail=False, methods=["post"], url_path="me/signature",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_signature(self, request):
+        """Register the caller's personal signature image and set their
+        Signature PIN in one step. Nothing is saved unless the signature
+        usage agreement is explicitly accepted in this same request."""
+        from django.contrib.auth.hashers import make_password
+
+        user = request.user
+        agreement_accepted = str(request.data.get("agreement_accepted", "")).lower() in ("true", "1", "yes")
+        if not agreement_accepted:
+            return Response({"error": "You must accept the signature usage agreement."}, status=400)
+
+        file = request.FILES.get("signature")
+        if not file:
+            return Response({"error": "No signature image was provided."}, status=400)
+
+        pin = str(request.data.get("pin", ""))
+        pin_confirm = str(request.data.get("pin_confirm", ""))
+        if not (pin.isdigit() and 4 <= len(pin) <= 6):
+            return Response({"error": "PIN must be 4 to 6 digits."}, status=400)
+        if pin != pin_confirm:
+            return Response({"error": "PIN and confirmation do not match."}, status=400)
+
+        user.signature = file
+        user.signature_consented_at = timezone.now()
+        user.signature_pin_hash = make_password(pin)
+        user.signature_pin_failed_attempts = 0
+        user.signature_pin_locked_until = None
+        user.save(update_fields=[
+            "signature", "signature_consented_at", "signature_pin_hash",
+            "signature_pin_failed_attempts", "signature_pin_locked_until",
+        ])
+
+        create_audit_log(
+            event_type="signature_registered",
+            event_category=AuditLog.EventCategory.USER_MANAGEMENT,
+            user=user,
+            organisation=user.organisation,
+            description=f"{user} uploaded a signature and set a Signature PIN.",
+            entity_type="user",
+            entity_id=user.id,
+        )
+        return Response(UserSerializer(user, context={"request": request}).data)
+
+    @action(detail=False, methods=["post"], url_path="me/signature/verify-pin")
+    def verify_signature_pin(self, request):
+        """Check the caller's Signature PIN before letting them apply their
+        signature to a document. Locks out for 15 minutes after 5 wrong
+        attempts in a row, and every attempt - success or failure - is
+        written to the audit log."""
+        from django.contrib.auth.hashers import check_password
+
+        user = request.user
+        if not user.signature_pin_hash:
+            return Response({"error": "No Signature PIN has been set yet."}, status=400)
+
+        now = timezone.now()
+        if user.signature_pin_locked_until and user.signature_pin_locked_until > now:
+            remaining = int((user.signature_pin_locked_until - now).total_seconds() // 60) + 1
+            return Response(
+                {"error": f"Too many incorrect attempts. Try again in about {remaining} minute(s)."},
+                status=423,
+            )
+
+        pin = str(request.data.get("pin", ""))
+        valid = check_password(pin, user.signature_pin_hash)
+
+        if valid:
+            user.signature_pin_failed_attempts = 0
+            user.signature_pin_locked_until = None
+            user.save(update_fields=["signature_pin_failed_attempts", "signature_pin_locked_until"])
+            create_audit_log(
+                event_type="signature_pin_verified",
+                event_category=AuditLog.EventCategory.AUTHENTICATION,
+                user=user,
+                organisation=user.organisation,
+                description=f"{user} successfully verified their Signature PIN.",
+                entity_type="user",
+                entity_id=user.id,
+            )
+            return Response({"valid": True})
+
+        user.signature_pin_failed_attempts += 1
+        locked = user.signature_pin_failed_attempts >= 5
+        if locked:
+            user.signature_pin_locked_until = now + timezone.timedelta(minutes=15)
+            user.signature_pin_failed_attempts = 0
+        user.save(update_fields=["signature_pin_failed_attempts", "signature_pin_locked_until"])
+
+        create_audit_log(
+            event_type="signature_pin_locked" if locked else "signature_pin_failed",
+            event_category=AuditLog.EventCategory.AUTHENTICATION,
+            user=user,
+            organisation=user.organisation,
+            description=(
+                f"{user} entered an incorrect Signature PIN"
+                + (" and has been locked out for 15 minutes." if locked else ".")
+            ),
+            entity_type="user",
+            entity_id=user.id,
+        )
+        status_code = 423 if locked else 400
+        message = "Too many incorrect attempts. Locked for 15 minutes." if locked else "Incorrect PIN."
+        return Response({"valid": False, "error": message}, status=status_code)
 
     @action(detail=True, methods=["post"], url_path="change-status")
     def change_employment_status(self, request, pk=None):
