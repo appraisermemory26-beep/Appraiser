@@ -325,7 +325,7 @@ export default function SettingsPage() {
                     ? profile?.has_signature_pin
                       ? "Signature and PIN on file. Used to sign your documents, such as timesheets."
                       : "Signature on file, but no PIN is set."
-                    : "Upload your signature so the system can use it to sign your documents, such as timesheets."}
+                    : "Upload your signature so the system can use it to sign any document that requires your signature, such as timesheets."}
                 </p>
               </div>
               <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
@@ -344,7 +344,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
                   You are uploading your signature. You agree that your signature will be used by the system to sign
-                  documents in your name, and you agree for your signature to be used for routine tasks such as
+                  any document that requires your signature, in your name, including routine tasks such as
                   timesheets, etc.
                 </p>
                 <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
