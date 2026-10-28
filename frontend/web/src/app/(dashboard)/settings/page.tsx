@@ -303,43 +303,68 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="mb-6 flex items-center gap-4 rounded-xl p-4" style={{ border: "1px solid var(--border)" }}>
-              <div
-                className="flex h-16 w-16 items-center justify-center rounded-lg"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border)" }}
-              >
-                {profile?.has_signature && mediaUrl(profile?.signature) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={mediaUrl(profile?.signature) || undefined}
-                    alt="Your signature"
-                    className="max-h-14 max-w-14 object-contain"
-                  />
-                ) : (
-                  <FileSignature className="h-6 w-6" style={{ color: "var(--text-muted)" }} />
-                )}
+            <div className="mb-6 rounded-xl p-4" style={{ border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-4">
+                <div className="relative">
+                  <div
+                    onClick={handleSignaturePick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleSignaturePick(); }}
+                    title="Upload signature"
+                    aria-label="Upload signature"
+                    className="flex h-20 w-20 items-center justify-center rounded-lg cursor-pointer transition-colors"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border)" }}
+                  >
+                    {profile?.has_signature && mediaUrl(profile?.signature) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={mediaUrl(profile?.signature) || undefined}
+                        alt="Your signature"
+                        className="max-h-16 max-w-16 object-contain"
+                      />
+                    ) : (
+                      <FileSignature className="h-7 w-7" style={{ color: "var(--text-muted)" }} />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSignaturePick}
+                    disabled={uploadingSignature}
+                    title="Upload signature"
+                    aria-label="Upload signature"
+                    className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ backgroundColor: "var(--border)", color: "var(--text-secondary)" }}
+                    onMouseEnter={(e) => { if (!uploadingSignature) { e.currentTarget.style.backgroundColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent-on)"; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+                  >
+                    {uploadingSignature ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+                  </button>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold" style={{ color: "var(--text-primary)" }}>Signature</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+                    {profile?.has_signature
+                      ? profile?.has_signature_pin
+                        ? "Signature and PIN on file. Used to sign any document that requires your signature."
+                        : "Signature on file, but no PIN is set."
+                      : "Upload your signature so the system can use it to sign any document that requires your signature. Your signature is safe and protected, and only you have access to it."}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-semibold" style={{ color: "var(--text-primary)" }}>Signature</p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {profile?.has_signature
-                    ? profile?.has_signature_pin
-                      ? "Signature and PIN on file. Used to sign any document that requires your signature."
-                      : "Signature on file, but no PIN is set."
-                    : "Upload your signature so the system can use it to sign any document that requires your signature. Your signature is safe and protected, and only you have access to it."}
-                </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
+                  {uploadingSignature ? "Uploading..." : profile?.has_signature ? "Replace Signature" : "Upload Signature"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setShowSignatureGuide(true)}
+                  className="text-xs underline"
+                  style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  How do I get a signature image?
+                </button>
               </div>
-              <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
-                {uploadingSignature ? "Uploading..." : profile?.has_signature ? "Replace Signature" : "Upload Signature"}
-              </Button>
-              <button
-                type="button"
-                onClick={() => setShowSignatureGuide(true)}
-                className="text-xs underline"
-                style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", marginLeft: 8, whiteSpace: "nowrap" }}
-              >
-                How do I get a signature image?
-              </button>
               <input
                 ref={signatureInputRef}
                 type="file"
