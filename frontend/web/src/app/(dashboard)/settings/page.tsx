@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, FileSignature } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { FormInput } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +14,7 @@ import type { User, Organisation } from "@/lib/types";
 import clsx from "clsx";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 const tabs = ["Profile", "Organization", "Notifications", "Appearance"];
 
@@ -44,6 +47,12 @@ export default function SettingsPage() {
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [pendingSignatureFile, setPendingSignatureFile] = useState<File | null>(null);
+  const [showSignatureAgreement, setShowSignatureAgreement] = useState(false);
+  const [signaturePin, setSignaturePin] = useState("");
+  const [signaturePinConfirm, setSignaturePinConfirm] = useState("");
 
   useEffect(() => {
     async function fetchProfile() {
@@ -123,6 +132,65 @@ export default function SettingsPage() {
       toast.error((err as Error).message || "Failed to upload profile picture");
     } finally {
       setUploadingAvatar(false);
+    }
+  };
+
+  const handleSignaturePick = () => signatureInputRef.current?.click();
+
+  const handleSignatureFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file (PNG, JPG, etc.)");
+      return;
+    }
+    if (file.size > MAX_SIGNATURE_BYTES) {
+      toast.error("Image too large. Max 2 MB.");
+      return;
+    }
+    setPendingSignatureFile(file);
+    setSignaturePin("");
+    setSignaturePinConfirm("");
+    setShowSignatureAgreement(true);
+  };
+
+  const handleSignatureDecline = () => {
+    // "No, I Disagree": the file is withdrawn immediately - nothing is uploaded.
+    setPendingSignatureFile(null);
+    setSignaturePin("");
+    setSignaturePinConfirm("");
+    setShowSignatureAgreement(false);
+  };
+
+  const handleSignatureAgree = async () => {
+    if (!pendingSignatureFile || !profile) return;
+    if (!/^\d{4,6}$/.test(signaturePin)) {
+      toast.error("PIN must be 4 to 6 digits.");
+      return;
+    }
+    if (signaturePin !== signaturePinConfirm) {
+      toast.error("PIN and confirmation do not match.");
+      return;
+    }
+    setUploadingSignature(true);
+    try {
+      const form = new FormData();
+      form.append("signature", pendingSignatureFile);
+      form.append("pin", signaturePin);
+      form.append("pin_confirm", signaturePinConfirm);
+      form.append("agreement_accepted", "true");
+      const updated = await api.upload<User>("/api/v1/accounts/users/me/signature/", form);
+      setProfile(updated);
+      toast.success("Signature saved.");
+      setShowSignatureAgreement(false);
+      setPendingSignatureFile(null);
+      setSignaturePin("");
+      setSignaturePinConfirm("");
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Failed to save signature.");
+    } finally {
+      setUploadingSignature(false);
     }
   };
 
@@ -233,6 +301,90 @@ export default function SettingsPage() {
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>{profile?.role}</p>
               </div>
             </div>
+
+            <div className="mb-6 flex items-center gap-4 rounded-xl p-4" style={{ border: "1px solid var(--border)" }}>
+              <div
+                className="flex h-16 w-16 items-center justify-center rounded-lg"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border)" }}
+              >
+                {profile?.has_signature && mediaUrl(profile?.signature) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaUrl(profile?.signature) || undefined}
+                    alt="Your signature"
+                    className="max-h-14 max-w-14 object-contain"
+                  />
+                ) : (
+                  <FileSignature className="h-6 w-6" style={{ color: "var(--text-muted)" }} />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold" style={{ color: "var(--text-primary)" }}>Signature</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {profile?.has_signature
+                    ? profile?.has_signature_pin
+                      ? "Signature and PIN on file. Used to sign your documents, such as timesheets."
+                      : "Signature on file, but no PIN is set."
+                    : "Upload your signature so the system can use it to sign your documents, such as timesheets."}
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleSignaturePick} disabled={uploadingSignature}>
+                {uploadingSignature ? "Uploading..." : profile?.has_signature ? "Replace Signature" : "Upload Signature"}
+              </Button>
+              <input
+                ref={signatureInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleSignatureFileChange}
+              />
+            </div>
+
+            <Modal isOpen={showSignatureAgreement} onClose={handleSignatureDecline} title="Signature Usage Agreement">
+              <div className="space-y-4">
+                <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
+                  You are uploading your signature. You agree that your signature will be used by the system to sign
+                  documents in your name, and you agree for your signature to be used for routine tasks such as
+                  timesheets, etc.
+                </p>
+                <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
+                  Every actual use of your signature will always appear as a draft first and will always ask for
+                  your review and approval - it is your right to accept or decline each time.
+                </p>
+                <FormInput
+                  label="Set a Signature PIN (4-6 digits)"
+                  name="signature_pin"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={signaturePin}
+                  onChange={(e) => setSignaturePin(e.target.value.replace(/\D/g, ""))}
+                  placeholder="e.g. 4821"
+                />
+                <FormInput
+                  label="Confirm PIN"
+                  name="signature_pin_confirm"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={signaturePinConfirm}
+                  onChange={(e) => setSignaturePinConfirm(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Re-enter PIN"
+                />
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+                  This PIN is separate from your account password and will be required every time your signature is
+                  actually applied to a document.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="secondary" size="md" onClick={handleSignatureDecline} disabled={uploadingSignature}>
+                    No, I Disagree
+                  </Button>
+                  <Button variant="primary" size="md" onClick={handleSignatureAgree} disabled={uploadingSignature}>
+                    {uploadingSignature ? "Saving..." : "Yes, I Agree - Save Signature"}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
 
             <form className="space-y-4" onSubmit={handleSaveProfile}>
               <div className="grid grid-cols-3 gap-4">

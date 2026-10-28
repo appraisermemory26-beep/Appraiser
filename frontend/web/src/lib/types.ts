@@ -47,6 +47,10 @@ export interface User {
   job_title: string;
   succeeded_by: number | null;
   succeeded_by_name?: string;
+  signature: string | null;
+  signature_consented_at: string | null;
+  has_signature?: boolean;
+  has_signature_pin?: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
