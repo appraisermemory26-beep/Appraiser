@@ -52,6 +52,9 @@ export default function SettingsPage() {
   const [pendingSignatureFile, setPendingSignatureFile] = useState<File | null>(null);
   const [showSignatureAgreement, setShowSignatureAgreement] = useState(false);
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
+  const [showSignaturePinVerify, setShowSignaturePinVerify] = useState(false);
+  const [signaturePinVerifyValue, setSignaturePinVerifyValue] = useState("");
+  const [verifyingSignaturePin, setVerifyingSignaturePin] = useState(false);
   const [signaturePin, setSignaturePin] = useState("");
   const [signaturePinConfirm, setSignaturePinConfirm] = useState("");
 
@@ -136,7 +139,37 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSignaturePick = () => signatureInputRef.current?.click();
+  const handleSignaturePick = () => {
+    if (profile?.has_signature && profile?.has_signature_pin) {
+      setSignaturePinVerifyValue("");
+      setShowSignaturePinVerify(true);
+    } else {
+      signatureInputRef.current?.click();
+    }
+  };
+
+  const handleSignaturePinVerifyCancel = () => {
+    setShowSignaturePinVerify(false);
+    setSignaturePinVerifyValue("");
+  };
+
+  const handleVerifySignaturePin = async () => {
+    if (!/^\d{4,6}$/.test(signaturePinVerifyValue)) {
+      toast.error("Enter your Signature PIN.");
+      return;
+    }
+    setVerifyingSignaturePin(true);
+    try {
+      await api.post("/api/v1/accounts/users/me/signature/verify-pin/", { pin: signaturePinVerifyValue });
+      setShowSignaturePinVerify(false);
+      setSignaturePinVerifyValue("");
+      signatureInputRef.current?.click();
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Incorrect PIN.");
+    } finally {
+      setVerifyingSignaturePin(false);
+    }
+  };
 
   const handleSignatureFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -373,6 +406,32 @@ export default function SettingsPage() {
                 onChange={handleSignatureFileChange}
               />
             </div>
+
+            <Modal isOpen={showSignaturePinVerify} onClose={handleSignaturePinVerifyCancel} title="Verify Your Signature PIN">
+              <div className="space-y-4">
+                <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
+                  For your security, enter your Signature PIN to replace your signature on file.
+                </p>
+                <FormInput
+                  label="Signature PIN"
+                  name="signature_pin_verify"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={signaturePinVerifyValue}
+                  onChange={(e) => setSignaturePinVerifyValue(e.target.value.replace(/\D/g, ""))}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-3">
+                  <Button variant="secondary" size="sm" onClick={handleSignaturePinVerifyCancel} disabled={verifyingSignaturePin}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleVerifySignaturePin} disabled={verifyingSignaturePin}>
+                    {verifyingSignaturePin ? "Verifying..." : "Verify PIN"}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
 
             <Modal isOpen={showSignatureAgreement} onClose={handleSignatureDecline} title="Signature Usage Agreement">
               <div className="space-y-4">
