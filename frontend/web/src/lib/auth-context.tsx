@@ -20,7 +20,11 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   isSetupComplete: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ otpRequired: boolean; pendingToken?: string }>;
+  verifyLoginOtp: (pendingToken: string, code: string) => Promise<void>;
   logout: () => void;
   refreshOrganisation: () => Promise<void>;
 }
@@ -81,9 +85,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const me = await api.login(email, password);
-      setUser(me);
+      const result = await api.login(email, password);
+      if (result.otpRequired) {
+        return { otpRequired: true, pendingToken: result.pendingToken };
+      }
+      setUser(result.user);
       // Fetch org data after login
+      await fetchOrganisation();
+      return { otpRequired: false };
+    },
+    [fetchOrganisation]
+  );
+
+  const verifyLoginOtp = useCallback(
+    async (pendingToken: string, code: string) => {
+      const me = await api.verifyLoginOtp(pendingToken, code);
+      setUser(me);
       await fetchOrganisation();
     },
     [fetchOrganisation]
@@ -109,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isSetupComplete: organisation?.is_setup_complete ?? false,
         login,
+        verifyLoginOtp,
         logout,
         refreshOrganisation,
       }}

@@ -21,8 +21,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [pendingToken, setPendingToken] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, verifyLoginOtp, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   // Redirect if already authenticated
@@ -38,8 +42,14 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await login(email, password);
-      router.push("/dashboard");
+      const result = await login(email, password);
+      if (result.otpRequired && result.pendingToken) {
+        setPendingToken(result.pendingToken);
+        setOtpCode("");
+        setStep("otp");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Login failed. Please try again.";
@@ -47,6 +57,29 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setVerifying(true);
+
+    try {
+      await verifyLoginOtp(pendingToken, otpCode);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Incorrect code. Please try again.";
+      setError(message);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function handleBackToCredentials() {
+    setStep("credentials");
+    setOtpCode("");
+    setError("");
   }
 
   // Show nothing while checking auth (prevents flash)
@@ -141,6 +174,7 @@ export default function LoginPage() {
             </div>
           )}
 
+          {step === "credentials" ? (
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="mb-1.5 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>Email</label>
@@ -220,6 +254,53 @@ export default function LoginPage() {
               </Link>
             </p>
           </form>
+          ) : (
+          <form className="mt-8 space-y-5" onSubmit={handleVerifyOtp}>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                Enter the 6-digit code
+              </label>
+              <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                We emailed a login code to {email}. It expires in 10 minutes.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                required
+                autoFocus
+                className="h-11 w-full rounded-lg border px-4 text-center text-lg tracking-[0.3em] outline-none transition-colors"
+                style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={verifying}
+              className="h-11 w-full rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+              style={{ backgroundColor: "var(--accent)", color: "var(--accent-on)", boxShadow: "var(--shadow)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--accent-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--accent)"; }}
+            >
+              {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
+              {verifying ? "Verifying..." : "Verify and sign in"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBackToCredentials}
+              className="w-full text-center text-sm font-medium hover:underline"
+              style={{ color: "var(--accent)", background: "none", border: "none", cursor: "pointer" }}
+            >
+              Back to email and password
+            </button>
+          </form>
+          )}
         </div>
       </div>
     </div>

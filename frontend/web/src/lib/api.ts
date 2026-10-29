@@ -1,4 +1,4 @@
-import type { LoginResponse, User } from "./types";
+import type { User } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -154,6 +154,10 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+type LoginStartResult =
+  | { otpRequired: true; pendingToken: string }
+  | { otpRequired: false; user: User };
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
 
@@ -197,16 +201,39 @@ export const api = {
 
   // ── Auth shortcuts ───────────────────────────────────────────────────────
 
-  login: async (email: string, password: string): Promise<User> => {
-    const tokens = await apiFetch<LoginResponse>("/api/v1/auth/token/", {
+  login: async (email: string, password: string): Promise<LoginStartResult> => {
+    const data = await apiFetch<{
+      otp_required?: boolean;
+      pending_token?: string;
+      access?: string;
+      refresh?: string;
+    }>("/api/v1/auth/token/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
 
-    setTokens(tokens.access, tokens.refresh);
+    if (data.otp_required && data.pending_token) {
+      return { otpRequired: true, pendingToken: data.pending_token };
+    }
 
-    // Fetch and return the current user profile
+    setTokens(data.access!, data.refresh!);
+    const user = await apiFetch<User>("/api/v1/accounts/users/me/");
+    return { otpRequired: false, user };
+  },
+
+  /** Step 2 of login: exchange the pending_token + emailed code for real tokens. */
+  verifyLoginOtp: async (pendingToken: string, code: string): Promise<User> => {
+    const tokens = await apiFetch<{ access: string; refresh: string }>(
+      "/api/v1/auth/token/verify-otp/",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pending_token: pendingToken, code }),
+      }
+    );
+
+    setTokens(tokens.access, tokens.refresh);
     const user = await apiFetch<User>("/api/v1/accounts/users/me/");
     return user;
   },
